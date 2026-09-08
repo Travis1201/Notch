@@ -9,8 +9,13 @@ import {
   skipSessionExercise,
   unskipSessionExercise,
   reorderSessionExercises,
+  updateSessionExerciseVariant,
 } from '../db/queries/sessionExercises';
-import { findOrCreateEquipmentVariant } from '../db/queries/equipmentVariants';
+import {
+  findOrCreateEquipmentVariant,
+  getEquipmentVariant,
+  getLastUsedBrand,
+} from '../db/queries/equipmentVariants';
 import {
   listSetsForSession,
   logSet as logSetQuery,
@@ -35,6 +40,7 @@ export interface SessionExerciseVM {
   position: number;
   status: SessionExerciseStatus;
   equipmentVariantId: string;
+  brand: string | null;
 }
 
 interface ActiveSessionState {
@@ -54,6 +60,12 @@ interface ActiveSessionState {
   unskipExercise(db: Database, sessionExerciseId: string): Promise<void>;
   reorderExercises(db: Database, orderedIds: string[]): Promise<void>;
   setCurrentExercise(db: Database, sessionExerciseId: string): Promise<void>;
+  setExerciseBrand(
+    db: Database,
+    sessionExerciseId: string,
+    exerciseId: string,
+    brand: string | null,
+  ): Promise<void>;
   ensureLastTopSet(
     db: Database,
     equipmentVariantId: string,
@@ -98,11 +110,18 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
     const rows = await listSessionExercises(db, sessionId);
     const exercises: SessionExerciseVM[] = [];
     for (const row of rows) {
-      const variant = await findOrCreateEquipmentVariant(db, {
-        exerciseId: row.exerciseId,
-        gymId: session.gymId,
-        brand: null,
-      });
+      // Normally already resolved and persisted when the exercise was added — just
+      // read the variant to get its brand. Falls back to a fresh no-brand resolution
+      // only for a session_exercise row created before equipmentVariantId existed on
+      // this table (a pre-upgrade in-progress session) — never the case going forward.
+      let variant = row.equipmentVariantId ? await getEquipmentVariant(db, row.equipmentVariantId) : null;
+      if (!variant) {
+        variant = await findOrCreateEquipmentVariant(db, {
+          exerciseId: row.exerciseId,
+          gymId: session.gymId,
+          brand: null,
+        });
+      }
       exercises.push({
         id: row.id,
         exerciseId: row.exerciseId,
@@ -110,6 +129,7 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
         position: row.position,
         status: row.status,
         equipmentVariantId: variant.id,
+        brand: variant.brand,
       });
     }
 
@@ -136,8 +156,19 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
     const { sessionId, gymId } = get();
     if (!sessionId || !gymId) return;
 
-    const variant = await findOrCreateEquipmentVariant(db, { exerciseId, gymId, brand: null });
-    const row = await addExerciseToSession(db, { sessionId, exerciseId });
+    // CLAUDE.md "Core design principle: confirm, don't input" — "Equipment brand
+    // defaults to whatever was used last time for this exercise at this gym."
+    const rememberedBrand = await getLastUsedBrand(db, exerciseId, gymId);
+    const variant = await findOrCreateEquipmentVariant(db, {
+      exerciseId,
+      gymId,
+      brand: rememberedBrand,
+    });
+    const row = await addExerciseToSession(db, {
+      sessionId,
+      exerciseId,
+      equipmentVariantId: variant.id,
+    });
     const session = await getSession(db, sessionId);
 
     set((state) => ({
@@ -150,6 +181,7 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
           position: row.position,
           status: row.status,
           equipmentVariantId: variant.id,
+          brand: variant.brand,
         },
       ],
       currentSessionExerciseId: session?.currentSessionExerciseId ?? state.currentSessionExerciseId,
@@ -199,6 +231,22 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
     if (!sessionId) return;
     await setCurrentSessionExercise(db, sessionId, sessionExerciseId);
     set({ currentSessionExerciseId: sessionExerciseId });
+  },
+
+  // Mid-session brand change (the equipment row on the logging screen). Already-
+  // logged sets stay put — this only repoints what gets logged from here on, and a
+  // brand switch naturally starts a fresh warm-up/top-set history for the new
+  // variant, which is correct: it's genuinely a different machine.
+  async setExerciseBrand(db, sessionExerciseId, exerciseId, brand) {
+    const { gymId } = get();
+    if (!gymId) return;
+    const variant = await findOrCreateEquipmentVariant(db, { exerciseId, gymId, brand });
+    await updateSessionExerciseVariant(db, sessionExerciseId, variant.id);
+    set((state) => ({
+      exercises: state.exercises.map((e) =>
+        e.id === sessionExerciseId ? { ...e, equipmentVariantId: variant.id, brand: variant.brand } : e,
+      ),
+    }));
   },
 
   async ensureLastTopSet(db, equipmentVariantId, repFloor) {

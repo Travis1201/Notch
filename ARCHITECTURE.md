@@ -21,8 +21,14 @@ so IDs stay stable and globally unique if cloud backup is ever added later, per
 CLAUDE.md's "sync-friendly" schema note. `schema.ts` must never import any Expo/React
 Native runtime module (see Migrations, below, for why).
 
-**`gyms`** — id, name, isDefault. Single-gym users never see gym UI at all; one row is
-created automatically on first launch (see Bootstrap) and used forever.
+**`gyms`** — id, name, isDefault. One row (`isDefault = true`) is created automatically
+on first launch (see Bootstrap). Single-gym users never really interact with gym UI
+beyond the header pill reading as a label; a second gym only exists once someone
+deliberately adds one via the gym switcher. `isDefault` only ever marks the original
+bootstrap-created row — it does NOT mean "the gym a new session should use." That's
+`getLastUsedGym` (`db/queries/gyms.ts`): derived from the most recent session's `gymId`,
+falling back to the default gym only when no session has ever been logged, per CLAUDE.md
+"gym defaults to the last one used" — deliberately not a separately stored preference.
 
 **`exercises`** — id, name, muscleGroup, equipmentType, isCustom, plus three nullable
 per-exercise overrides (`restSeconds`, `weightIncrement`, `repFloor`) that fall back to
@@ -37,6 +43,14 @@ implicitly the first time a user logs that (exercise, gym, brand) combination, v
 find-or-create inside a transaction (`db/queries/equipmentVariants.ts`) — necessary
 because the existing index on `(exerciseId, gymId)` isn't unique, and a unique index
 wouldn't help anyway, since SQLite never treats two `NULL` brands as equal.
+
+Brand is picked via a combobox (`components/exercises/EquipmentBrandPicker.tsx`) that
+filters a seed list of majors (`constants/equipmentBrands.ts`) or accepts free text.
+CLAUDE.md's "remembers per exercise+gym" is `getLastUsedBrand` — a gym can have swapped
+equipment over time, so more than one variant can exist for the same (exercise, gym)
+pair; it returns whichever one's most recently logged set is newest, not just the first
+one found. This runs once, when an exercise is added to a session (defaulting the brand
+silently, no prompt, per "confirm don't input") — never mid-set.
 
 **`templates`** / **`templateExercises`** — structure only (an ordered exercise list),
 never weights/reps/RIR. Not yet wired into any screen (build order step 5); the active
@@ -233,21 +247,39 @@ overrides and pre-fill on mount/exercise-change, and otherwise reads/writes only
 through the store above.
 
 The screen only ever produces template-less "empty workout" sessions
-(`templateId = null`) — every exercise is logged against `equipmentVariantId`s resolved
-with `brand = null` at the single default gym, since neither templates nor the
-equipment-brand combobox exist yet (steps 5 and 4 respectively). `session_exercises`
+(`templateId = null`), since templates don't exist until step 5. `session_exercises`
 rows never get a `status` beyond `pending`/`skipped` — there's no "done" status; "am I
 on this exercise" is entirely determined by `sessions.currentSessionExerciseId`.
+Each row also carries `equipmentVariantId`: resolved once — to whatever brand was last
+used for that exercise at that gym, or none — when the exercise is added, and persisted
+so a reload doesn't need to re-resolve it (an earlier version silently re-resolved to
+"no brand" on every reload; this is why the column exists rather than deriving it).
+Changing brand mid-session (`ActiveExercisePanel`'s equipment row → `EquipmentBrandPicker`
+→ `activeSessionStore.setExerciseBrand`) just repoints this pointer to a different
+variant — already-logged sets keep referencing the variant they were actually logged
+against, and the newly-pointed variant naturally starts its own fresh warm-up/top-set
+history, which is correct: it's genuinely a different machine.
+
+**Gym switcher**: a pill in Home's header (`components/gyms/GymSwitcherModal.tsx`),
+defaulting to `getLastUsedGym` — single-gym users effectively never see it do anything,
+matching CLAUDE.md's "single-gym users read it as a label." Picking a different gym
+only changes local Home-screen state (which gym the *next* new session will use); it's
+not a separately persisted "current gym" concept, consistent with "gym defaults to the
+last one used" being derived, not stored.
 
 ## Known limitations / not yet built
 
-Per CLAUDE.md's build order: gym switcher + equipment-brand combobox, templates (and
-their pre-fill wiring), progression charts, and history browsing are all not built
-yet. Exercise deletion is deliberately absent — CLAUDE.md never calls for it, and
-deleting an exercise with existing sets/variants raises history-integrity questions
-out of scope until gyms/variants UI (step 4) exists. `victory-native` /
-`react-native-gifted-charts` (named in CLAUDE.md's Stack section for progression
-charts) isn't installed, since nothing needs it until step 7. Auto-close (CLAUDE.md: 3 hours of inactivity) is swept on Home's
+Per CLAUDE.md's build order: templates (and their pre-fill wiring), progression
+charts, and history browsing are all not built yet. Exercise deletion is deliberately
+absent — CLAUDE.md never calls for it, and deleting an exercise with existing
+sets/variants raises history-integrity questions out of scope for now. Gym
+renaming/deletion is similarly absent — CLAUDE.md doesn't call for it, and the same
+integrity questions apply. Cross-gym reference display (a travel session showing
+greyed-out home-gym numbers, per CLAUDE.md's Multi-gym section) isn't built — first
+sessions at a new gym currently show no pre-fill at all, which is honest but not yet
+the specified UX. `victory-native` / `react-native-gifted-charts` (named in CLAUDE.md's
+Stack section for progression charts) isn't installed, since nothing needs it until
+step 7. Auto-close (CLAUDE.md: 3 hours of inactivity) is swept on Home's
 focus effect rather than a background `AppState` listener — correct for the case that
 matters (Home always reflects accurate resumable-session state before the user acts on
 it) but a session backgrounded for 3+ hours won't flip to `complete` until the user

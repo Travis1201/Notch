@@ -1,0 +1,1 @@
+ALTER TABLE `session_exercises` ADD `equipment_variant_id` text REFERENCES equipment_variants(id);

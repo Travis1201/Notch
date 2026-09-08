@@ -24,6 +24,7 @@ import { fromLb, toLb, roundToStep } from '../../lib/units';
 import { NumberStepper } from './NumberStepper';
 import { RirSelector } from './RirSelector';
 import { SetRow } from './SetRow';
+import { EquipmentBrandPicker } from '../exercises/EquipmentBrandPicker';
 
 interface Props {
   sessionExercise: SessionExerciseVM;
@@ -47,6 +48,7 @@ export function ActiveExercisePanel({
   const [settings, setSettings] = useState<Settings | null>(null);
   const [draft, setDraft] = useState<PrefillSet>(FALLBACK_DRAFT);
   const [isLogging, setIsLogging] = useState(false);
+  const [brandPickerVisible, setBrandPickerVisible] = useState(false);
 
   const setsThisSession = useActiveSessionStore(
     (s) => s.setsByEquipmentVariantId[sessionExercise.equipmentVariantId] ?? EMPTY_SETS,
@@ -57,6 +59,7 @@ export function ActiveExercisePanel({
   const ensureLastTopSet = useActiveSessionStore((s) => s.ensureLastTopSet);
   const logSet = useActiveSessionStore((s) => s.logSet);
   const toggleWarmupOverride = useActiveSessionStore((s) => s.toggleWarmupOverride);
+  const setExerciseBrand = useActiveSessionStore((s) => s.setExerciseBrand);
   const startRestTimer = useRestTimerStore((s) => s.start);
 
   useEffect(() => {
@@ -135,6 +138,7 @@ export function ActiveExercisePanel({
   }
 
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.titleRow}>
         <Text style={styles.exerciseName}>{sessionExercise.name}</Text>
@@ -142,6 +146,13 @@ export function ActiveExercisePanel({
           {indexInList} of {totalCount}
         </Text>
       </View>
+
+      <Pressable style={styles.brandRow} onPress={() => setBrandPickerVisible(true)}>
+        <Text style={styles.brandIcon}>⚙</Text>
+        <Text style={sessionExercise.brand ? styles.brandLabel : styles.brandLabelEmpty}>
+          {sessionExercise.brand ?? 'Add equipment brand'}
+        </Text>
+      </Pressable>
 
       {lastTopSet ? (
         <View style={styles.lastTimeBox}>
@@ -204,6 +215,13 @@ export function ActiveExercisePanel({
         </Pressable>
       )}
     </ScrollView>
+    <EquipmentBrandPicker
+      visible={brandPickerVisible}
+      currentBrand={sessionExercise.brand}
+      onClose={() => setBrandPickerVisible(false)}
+      onSelect={(brand) => setExerciseBrand(db, sessionExercise.id, sessionExercise.exerciseId, brand)}
+    />
+    </>
   );
 }
 
@@ -226,6 +244,10 @@ const styles = StyleSheet.create({
   },
   exerciseName: { fontSize: 18, fontWeight: '600', color: colors.textPrimary },
   positionLabel: { fontSize: 12, color: colors.textMuted },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
+  brandIcon: { fontSize: 12, color: colors.textMuted },
+  brandLabel: { fontSize: 13, color: colors.textSecondary },
+  brandLabelEmpty: { fontSize: 13, color: colors.textMuted },
   lastTimeBox: {
     backgroundColor: colors.accentTintBg,
     borderRadius: 8,

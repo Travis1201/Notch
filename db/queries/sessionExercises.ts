@@ -14,9 +14,13 @@ export async function listSessionExercises(db: Database, sessionId: string) {
 // position = current max+1 (0 for the first). If the session has no current exercise
 // yet, this newly-added one also becomes current — both writes happen in one
 // transaction per the Gotchas section ("wrap multi-row writes in transactions").
+// Caller resolves `equipmentVariantId` beforehand (typically via getLastUsedBrand +
+// findOrCreateEquipmentVariant, so it defaults to whatever brand was last used for
+// this exercise at this gym) — persisted here so a reload doesn't need to re-resolve
+// it, and so it survives independent of whether any sets have been logged yet.
 export async function addExerciseToSession(
   db: Database,
-  input: { sessionId: string; exerciseId: string },
+  input: { sessionId: string; exerciseId: string; equipmentVariantId: string },
 ) {
   return db.transaction(async (tx) => {
     const [{ maxPosition }] = await tx
@@ -29,6 +33,7 @@ export async function addExerciseToSession(
       .values({
         sessionId: input.sessionId,
         exerciseId: input.exerciseId,
+        equipmentVariantId: input.equipmentVariantId,
         position: (maxPosition ?? -1) + 1,
         status: 'pending',
         createdAt: new Date(),
@@ -81,6 +86,20 @@ export async function skipSessionExercise(db: Database, sessionExerciseId: strin
         .where(eq(sessions.id, row.sessionId));
     }
   });
+}
+
+// Mid-session equipment brand change (the settings-bolt row on the logging screen).
+// Already-logged sets keep referencing their original equipment_variant — this only
+// repoints what NEW sets for this exercise get logged against going forward.
+export async function updateSessionExerciseVariant(
+  db: Database,
+  sessionExerciseId: string,
+  equipmentVariantId: string,
+) {
+  await db
+    .update(sessionExercises)
+    .set({ equipmentVariantId })
+    .where(eq(sessionExercises.id, sessionExerciseId));
 }
 
 export async function unskipSessionExercise(db: Database, sessionExerciseId: string) {

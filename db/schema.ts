@@ -122,6 +122,14 @@ export const sessionExercises = sqliteTable(
     position: integer('position').notNull(),
     status: text('status', { enum: sessionExerciseStatuses }).notNull().default('pending'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    // Which equipment_variant (exercise+gym+brand) this exercise is currently being
+    // logged against in this session. Resolved once when the exercise is added
+    // (defaulting to whatever brand was last used for this exercise at this gym —
+    // CLAUDE.md "Core design principle: confirm, don't input") and persisted here so
+    // it survives a reload instead of being silently re-resolved to no brand every
+    // time. Changeable mid-session via the equipment brand picker, which just updates
+    // this pointer — already-logged sets keep referencing their original variant.
+    equipmentVariantId: text('equipment_variant_id').references(() => equipmentVariants.id),
   },
   (table) => [index('session_exercises_session_idx').on(table.sessionId)],
 );

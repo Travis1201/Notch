@@ -29,3 +29,32 @@ export async function findOrCreateEquipmentVariant(
     return row;
   });
 }
+
+export async function getEquipmentVariant(db: Database, id: string) {
+  const row = await db.query.equipmentVariants.findFirst({ where: (v, { eq }) => eq(v.id, id) });
+  return row ?? null;
+}
+
+// CLAUDE.md v1 scope: equipment brand combobox "remembers per exercise+gym." A gym
+// can have swapped equipment over time, so more than one variant can exist for the
+// same (exerciseId, gymId) with different brands — this returns whichever one was
+// used most recently (by its most recent set), not just the first one found.
+export async function getLastUsedBrand(
+  db: Database,
+  exerciseId: string,
+  gymId: string,
+): Promise<string | null> {
+  const variants = await db.query.equipmentVariants.findMany({
+    where: and(eq(equipmentVariants.exerciseId, exerciseId), eq(equipmentVariants.gymId, gymId)),
+  });
+  if (variants.length === 0) return null;
+  if (variants.length === 1) return variants[0].brand;
+
+  const variantIds = variants.map((v) => v.id);
+  const recentSet = await db.query.sets.findFirst({
+    where: (s, { inArray: inArr }) => inArr(s.equipmentVariantId, variantIds),
+    orderBy: (s, { desc }) => desc(s.loggedAt),
+  });
+  if (!recentSet) return variants[0].brand;
+  return variants.find((v) => v.id === recentSet.equipmentVariantId)?.brand ?? null;
+}
