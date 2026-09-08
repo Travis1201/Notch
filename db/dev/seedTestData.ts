@@ -1,6 +1,5 @@
 import type { Database } from '../client';
-import { exercises, sets, sessions } from '../schema';
-import { listExercises } from '../queries/exercises';
+import { sets, sessions } from '../schema';
 import { getDefaultGym } from '../queries/gyms';
 import { findOrCreateEquipmentVariant } from '../queries/equipmentVariants';
 
@@ -10,24 +9,24 @@ import { findOrCreateEquipmentVariant } from '../queries/equipmentVariants';
 // nothing ships. CLAUDE.md "Empty states" forbids seeding data for real users; this
 // exists purely because there's no simulator in this dev environment to test against.
 //
-// Idempotent: skips entirely if any exercise already exists. Before the seed exercise
-// list (build order step 3) ships, a fresh install's exercises table is otherwise
-// always empty, so this is a safe, simple sentinel for "already seeded."
+// Idempotent on "does any session already exist" — NOT "does any exercise exist,"
+// since the real seed list (db/seedExercises.ts, wired into db/bootstrap.ts) now
+// always populates ~60 exercises for every install, including "Chest press" and
+// "Back squat" by name. This looks those up rather than inserting duplicates.
 export async function seedTestData(db: Database): Promise<void> {
-  const existing = await listExercises(db);
-  if (existing.length > 0) return;
+  const existingSession = await db.query.sessions.findFirst();
+  if (existingSession) return;
 
   const gym = await getDefaultGym(db);
   if (!gym) return;
 
-  const [chestPress] = await db
-    .insert(exercises)
-    .values({ name: 'Chest press', muscleGroup: 'Chest', equipmentType: 'machine', isCustom: false })
-    .returning();
-  const [backSquat] = await db
-    .insert(exercises)
-    .values({ name: 'Back squat', muscleGroup: 'Legs', equipmentType: 'barbell', isCustom: false })
-    .returning();
+  const chestPress = await db.query.exercises.findFirst({
+    where: (e, { eq }) => eq(e.name, 'Chest press'),
+  });
+  const backSquat = await db.query.exercises.findFirst({
+    where: (e, { eq }) => eq(e.name, 'Back squat'),
+  });
+  if (!chestPress || !backSquat) return; // seed list didn't run yet or was edited
 
   const chestVariant = await findOrCreateEquipmentVariant(db, {
     exerciseId: chestPress.id,

@@ -163,6 +163,15 @@ never stored in the Zustand state either — they're computed at render time fro
 `setsByEquipmentVariantId` via the pure-logic layer above, keeping "derive, don't
 cache" true in memory as well as in SQLite.
 
+**Zustand selector gotcha, hit once already:** a selector must never fall back to a
+freshly-constructed `[]`/`{}` (e.g. `s.setsByEquipmentVariantId[id] ?? []`). Zustand's
+hook is built on `useSyncExternalStore`, which calls the selector every render to
+check whether the snapshot changed — a new array reference each call looks like a
+perpetual change and crashes the app with "Maximum update depth exceeded." Fix is a
+stable module-level constant (`activeSessionStore.ts` exports `EMPTY_SETS` for this).
+Grep for `?? []`/`?? {}` inside any `useActiveSessionStore`/`useRestTimerStore` call
+before adding a new selector.
+
 A second store, `store/restTimerStore.ts`, tracks the rest timer as an absolute
 `endsAt` epoch timestamp rather than a decrementing counter — display components
 recompute `remaining = max(0, endsAt - Date.now())` on their own interval purely to
@@ -177,10 +186,38 @@ phone-locked, skippable/adjustable without leaving the screen.
 
 `app/` is expo-router file-based routing. `app/_layout.tsx` wraps the whole app in
 `DatabaseProvider`. `app/(tabs)/` holds the four-tab shell (Home / Progress / Exercises
-/ History) — Progress/Exercises/History are still bare placeholders; Home has minimal
+/ History) — Progress and History are still bare placeholders; Home has minimal
 functional Start/Resume-workout wiring (not the final hero-card design from Visual
 design, which depends on templates existing in step 5) plus a `__DEV__`-only seed-data
 button (`db/dev/seedTestData.ts` — dead-code-eliminated from release builds).
+
+**Exercises tab** (`app/(tabs)/exercises.tsx`) lists every exercise — grouped by
+muscle group via `SectionList` with no search query, collapsing to a flat search-result
+`FlatList` once one is typed — with a "Custom" pill on user-created rows and a "+ New"
+entry point. Tapping a row pushes `app/exercise/[id].tsx`, a real screen (not a modal,
+matching `app/session/[id].tsx`'s precedent): core fields (name/muscle group/equipment
+type) are editable only for custom exercises, rendered as plain read-only text for the
+seeded ones — CLAUDE.md's seed list is deliberately generic content, and the stated
+escape hatch for wanting something different is creating a custom exercise, not
+mutating the shared seeded taxonomy other progression logic scopes against. The three
+per-exercise overrides (rest seconds, weight increment, rep floor) are editable
+regardless of `isCustom` — that's exactly "per-exercise override for anything unusual,"
+CLAUDE.md's own words, with no seeded/custom carve-out — each shown via
+`components/exercises/ExerciseOverrideRow.tsx` with its effective value, a
+default/custom caption, and a reset-to-`null` link. `components/exercises/
+ExerciseForm.tsx` (relocated and generalized from what was originally a
+session-only `CreateExerciseForm`) is shared by exercise creation here, the logging
+screen's add-exercise sheet, and this detail screen's edit mode — one form, three
+callers, driven by an optional `initialValues` prop and a `submitLabel` override
+rather than three near-duplicate components.
+
+**Exercise seed list**: `db/seedExercises.ts` holds 60 generic-named exercises
+(barbell/dumbbell/machine/cable/bodyweight), inserted once via `ensureSeedExercises`
+in `db/bootstrap.ts` (same idempotent check-then-insert pattern as the default gym and
+settings row, sentinel is "does any `isCustom = false` row exist") — this runs for
+every real install, unlike the `__DEV__`-only fake-history fixture, which now looks up
+"Chest press"/"Back squat" from the real seed list instead of inserting its own
+(their names would otherwise collide).
 
 The active workout screen lives at `app/session/[id].tsx`, structured as a
 **single-focused-exercise view** — one exercise's full logging UI on screen at a time,
@@ -204,11 +241,13 @@ on this exercise" is entirely determined by `sessions.currentSessionExerciseId`.
 
 ## Known limitations / not yet built
 
-Per CLAUDE.md's build order: exercise library UI, gym switcher + equipment-brand
-combobox, templates (and their pre-fill wiring), progression charts, and history
-browsing are all not built yet. `victory-native` / `react-native-gifted-charts` (named
-in CLAUDE.md's Stack section for progression charts) isn't installed, since nothing
-needs it until step 7. Auto-close (CLAUDE.md: 3 hours of inactivity) is swept on Home's
+Per CLAUDE.md's build order: gym switcher + equipment-brand combobox, templates (and
+their pre-fill wiring), progression charts, and history browsing are all not built
+yet. Exercise deletion is deliberately absent — CLAUDE.md never calls for it, and
+deleting an exercise with existing sets/variants raises history-integrity questions
+out of scope until gyms/variants UI (step 4) exists. `victory-native` /
+`react-native-gifted-charts` (named in CLAUDE.md's Stack section for progression
+charts) isn't installed, since nothing needs it until step 7. Auto-close (CLAUDE.md: 3 hours of inactivity) is swept on Home's
 focus effect rather than a background `AppState` listener — correct for the case that
 matters (Home always reflects accurate resumable-session state before the user acts on
 it) but a session backgrounded for 3+ hours won't flip to `complete` until the user

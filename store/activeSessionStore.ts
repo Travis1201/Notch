@@ -21,6 +21,13 @@ import type { Set as SetRow } from '../db/types';
 
 export type { SetRow };
 
+// Stable reference for "no sets logged for this variant yet." A selector that fell
+// back to a freshly-constructed `[]` on every call broke Zustand's
+// useSyncExternalStore (a new reference each render looks like a perpetual change)
+// and crashed the app with "Maximum update depth exceeded" — see
+// components/session/ActiveExercisePanel.tsx.
+export const EMPTY_SETS: SetRow[] = [];
+
 export interface SessionExerciseVM {
   id: string;
   exerciseId: string;

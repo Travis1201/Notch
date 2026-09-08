@@ -5,7 +5,7 @@ import { colors } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { listRecentOrFrequentExercises, searchExercises, createExercise } from '../../db/queries/exercises';
 import type { Exercise } from '../../db/types';
-import { CreateExerciseForm } from './CreateExerciseForm';
+import { ExerciseForm } from '../exercises/ExerciseForm';
 
 interface Props {
   visible: boolean;
@@ -48,9 +48,9 @@ export function AddExerciseModal({ visible, onClose, onSelect }: Props) {
         </View>
 
         {showCreateForm ? (
-          <CreateExerciseForm
+          <ExerciseForm
             onCancel={() => setShowCreateForm(false)}
-            onCreate={async (input) => {
+            onSubmit={async (input) => {
               const exercise = await createExercise(db, input);
               onSelect(exercise);
             }}

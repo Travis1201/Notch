@@ -4,15 +4,27 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { colors } from '../../constants/theme';
 import { exerciseEquipmentTypes, type ExerciseEquipmentType } from '../../db/schema';
 
+export interface ExerciseFormValues {
+  name: string;
+  muscleGroup: string;
+  equipmentType: ExerciseEquipmentType;
+}
+
 interface Props {
-  onCreate: (input: { name: string; muscleGroup: string; equipmentType: ExerciseEquipmentType }) => void;
+  initialValues?: ExerciseFormValues;
+  submitLabel?: string;
+  onSubmit: (values: ExerciseFormValues) => void;
   onCancel: () => void;
 }
 
-export function CreateExerciseForm({ onCreate, onCancel }: Props) {
-  const [name, setName] = useState('');
-  const [muscleGroup, setMuscleGroup] = useState('');
-  const [equipmentType, setEquipmentType] = useState<ExerciseEquipmentType>('machine');
+// Shared create/edit form — used by the logging screen's add-exercise sheet, the
+// Exercises tab's create modal, and a custom exercise's detail/edit screen.
+export function ExerciseForm({ initialValues, submitLabel = 'Add exercise', onSubmit, onCancel }: Props) {
+  const [name, setName] = useState(initialValues?.name ?? '');
+  const [muscleGroup, setMuscleGroup] = useState(initialValues?.muscleGroup ?? '');
+  const [equipmentType, setEquipmentType] = useState<ExerciseEquipmentType>(
+    initialValues?.equipmentType ?? 'machine',
+  );
 
   const canSubmit = name.trim().length > 0 && muscleGroup.trim().length > 0;
 
@@ -54,11 +66,13 @@ export function CreateExerciseForm({ onCreate, onCancel }: Props) {
           <Text style={styles.cancelLabel}>Cancel</Text>
         </Pressable>
         <Pressable
-          onPress={() => canSubmit && onCreate({ name: name.trim(), muscleGroup: muscleGroup.trim(), equipmentType })}
+          onPress={() =>
+            canSubmit && onSubmit({ name: name.trim(), muscleGroup: muscleGroup.trim(), equipmentType })
+          }
           style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
           disabled={!canSubmit}
         >
-          <Text style={styles.submitLabel}>Add exercise</Text>
+          <Text style={styles.submitLabel}>{submitLabel}</Text>
         </Pressable>
       </View>
     </View>

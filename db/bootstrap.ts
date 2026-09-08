@@ -1,5 +1,6 @@
 import type { Database } from './client';
-import { settings, gyms } from './schema';
+import { settings, gyms, exercises } from './schema';
+import { SEED_EXERCISES } from './seedExercises';
 
 // The settings migration only defines column DEFAULTS for future inserts — nothing
 // actually inserts row id=1. Idempotent: safe to call on every boot.
@@ -21,7 +22,21 @@ export async function ensureDefaultGym(db: Database) {
   return row;
 }
 
+// CLAUDE.md "Seed exercise list": ship ~60 real exercises so a new user isn't
+// creating everything by hand. Sentinel is "does any seeded (isCustom=false) row
+// exist" rather than "does any exercise exist" — more precise, and can't be
+// short-circuited by a user's own custom exercise. Not __DEV__-gated: this runs for
+// every real user, unlike db/dev/seedTestData.ts's fake workout history.
+export async function ensureSeedExercises(db: Database) {
+  const existing = await db.query.exercises.findFirst({
+    where: (e, { eq }) => eq(e.isCustom, false),
+  });
+  if (existing) return;
+  await db.insert(exercises).values(SEED_EXERCISES.map((e) => ({ ...e, isCustom: false })));
+}
+
 export async function runBootstrap(db: Database): Promise<void> {
   await ensureSettingsRow(db);
   await ensureDefaultGym(db);
+  await ensureSeedExercises(db);
 }

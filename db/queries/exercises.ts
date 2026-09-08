@@ -69,10 +69,22 @@ export async function createExercise(
   return row;
 }
 
-export async function updateExerciseRestSeconds(
+export async function updateExercise(
   db: Database,
   exerciseId: string,
-  restSeconds: number | null,
+  patch: Partial<{
+    name: string;
+    muscleGroup: string;
+    equipmentType: ExerciseEquipmentType;
+    restSeconds: number | null;
+    weightIncrement: number | null;
+    repFloor: number | null;
+  }>,
 ) {
-  await db.update(exercises).set({ restSeconds }).where(eq(exercises.id, exerciseId));
+  const [row] = await db
+    .update(exercises)
+    .set(patch)
+    .where(eq(exercises.id, exerciseId))
+    .returning();
+  return row;
 }

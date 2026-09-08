@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../../constants/theme';
 
 interface Props {
-  label: string;
+  label?: string;
   value: number;
   step: number;
   min?: number;
@@ -29,7 +29,7 @@ export function NumberStepper({ label, value, step, min = 0, onChange, formatVal
 
   return (
     <View style={styles.column}>
-      <Text style={styles.label}>{label}</Text>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <View style={styles.control}>
         <Pressable
           style={styles.tapTarget}

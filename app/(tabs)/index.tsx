@@ -6,7 +6,6 @@ import { colors } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { getInProgressSession, startEmptySession, autoCloseStaleSessions } from '../../db/queries/sessions';
 import { getDefaultGym } from '../../db/queries/gyms';
-import { listExercises } from '../../db/queries/exercises';
 import { seedTestData } from '../../db/dev/seedTestData';
 import type { Session } from '../../db/types';
 
@@ -45,15 +44,15 @@ export default function HomeScreen() {
   async function handleSeedTestData() {
     setSeeding(true);
     try {
-      const before = (await listExercises(db)).length;
+      const before = (await db.query.sessions.findMany()).length;
       await seedTestData(db);
-      const after = (await listExercises(db)).length;
+      const after = (await db.query.sessions.findMany()).length;
       if (before > 0) {
-        Alert.alert('Already seeded', `${before} exercise(s) already exist — seeding is skipped once anything's there.`);
-      } else if (after === 0) {
-        Alert.alert('Seed ran but inserted nothing', 'Check the default gym exists.');
+        Alert.alert('Already seeded', `${before} session(s) already exist — seeding is skipped once anything's there.`);
+      } else if (after === before) {
+        Alert.alert('Seed ran but inserted nothing', "Couldn't find Chest press / Back squat in the exercise list.");
       } else {
-        Alert.alert('Seeded', `Inserted ${after} exercise(s) with fake history.`);
+        Alert.alert('Seeded', `Inserted ${after - before} fake past session(s).`);
       }
     } catch (e) {
       Alert.alert('Seeding failed', e instanceof Error ? e.message : String(e));

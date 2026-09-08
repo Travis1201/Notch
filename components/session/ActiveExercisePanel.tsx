@@ -6,7 +6,11 @@ import { useDatabase } from '../../db/DatabaseProvider';
 import { getExercise } from '../../db/queries/exercises';
 import { getSettings } from '../../db/queries/settings';
 import type { Exercise, Settings } from '../../db/types';
-import { useActiveSessionStore, type SessionExerciseVM } from '../../store/activeSessionStore';
+import {
+  useActiveSessionStore,
+  EMPTY_SETS,
+  type SessionExerciseVM,
+} from '../../store/activeSessionStore';
 import { useRestTimerStore } from '../../store/restTimerStore';
 import { selectTopSet, didImprove } from '../../lib/progression';
 import { classifyWarmups } from '../../lib/warmups';
@@ -45,7 +49,7 @@ export function ActiveExercisePanel({
   const [isLogging, setIsLogging] = useState(false);
 
   const setsThisSession = useActiveSessionStore(
-    (s) => s.setsByEquipmentVariantId[sessionExercise.equipmentVariantId] ?? [],
+    (s) => s.setsByEquipmentVariantId[sessionExercise.equipmentVariantId] ?? EMPTY_SETS,
   );
   const lastTopSet = useActiveSessionStore(
     (s) => s.lastTopSetByEquipmentVariantId[sessionExercise.equipmentVariantId],
