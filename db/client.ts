@@ -3,7 +3,7 @@ import { drizzle, type ExpoSQLiteDatabase } from 'drizzle-orm/expo-sqlite';
 
 import * as schema from './schema';
 
-export const DATABASE_NAME = 'lift-tracker.db';
+export const DATABASE_NAME = 'notch.db';
 
 export type Database = ExpoSQLiteDatabase<typeof schema>;
 

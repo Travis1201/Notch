@@ -1,7 +1,22 @@
-# Lift Tracker
+# Notch
 
 A progressive-overload tracker for experienced lifters. React Native (Expo), fully
 on-device, no backend.
+
+## Naming
+
+- **App name:** Notch
+- **App Store subtitle (visible, ~30 char limit):** "Progressive overload tracker" — keep
+  this precise to what makes the app different, not generic gym-app language.
+- **App Store keywords field (invisible, ~100 char, search-only):** cover the generic
+  terms the subtitle has no room for — gym, log, workout, tracker, lifting, strength, PR,
+  sets, reps. This is where "gym log" / "workout tracker" search traffic gets captured,
+  the same job those words do in competitors' visible titles.
+- **Bundle identifier is effectively permanent once submitted to App Store Connect.**
+  Decide it now (e.g. `com.<username>.notch`) even though the display name can still
+  change later.
+- Search the App Store for "Notch" before committing — it's also a common term for the
+  iPhone's screen cutout, so check carefully.
 
 Built for the author's own use first, but **intended for TestFlight and eventual App
 Store release** — friends as testers, and a public link recruiters can install from.
