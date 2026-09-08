@@ -1,4 +1,12 @@
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
+import { relations } from 'drizzle-orm';
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  index,
+  type AnySQLiteColumn,
+} from 'drizzle-orm/sqlite-core';
 
 import { randomUUID } from './uuid';
 
@@ -83,11 +91,51 @@ export const sessions = sqliteTable('sessions', {
     .references(() => gyms.id),
   templateId: text('template_id').references(() => templates.id),
   status: text('status', { enum: sessionStatuses }).notNull().default('in_progress'),
-  currentPosition: integer('current_position').notNull().default(0),
+  // Which session_exercises row is currently being worked. An index into the
+  // exercise list can't survive reorder or free navigation between exercises,
+  // so this is a durable pointer instead — see CLAUDE.md "In-progress sessions".
+  currentSessionExerciseId: text('current_session_exercise_id').references(
+    (): AnySQLiteColumn => sessionExercises.id,
+  ),
   // Calculated once at finalization (last set timestamp minus first set timestamp),
   // then stored. Never derived from wall-clock close time — see CLAUDE.md "Duration".
   durationSeconds: integer('duration_seconds'),
 });
+
+// Durably tracks each exercise's place in a session — position, and whether it's
+// pending or was skipped. Needed because `sets` has no exerciseId column and can't
+// represent a zero-set state at all, so "skipped" vs "not yet reached" (both zero
+// sets, but meaning different things) has nowhere else to live.
+export const sessionExerciseStatuses = ['pending', 'skipped'] as const;
+export type SessionExerciseStatus = (typeof sessionExerciseStatuses)[number];
+
+export const sessionExercises = sqliteTable(
+  'session_exercises',
+  {
+    id: id(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id),
+    exerciseId: text('exercise_id')
+      .notNull()
+      .references(() => exercises.id),
+    position: integer('position').notNull(),
+    status: text('status', { enum: sessionExerciseStatuses }).notNull().default('pending'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => [index('session_exercises_session_idx').on(table.sessionId)],
+);
+
+export const sessionExercisesRelations = relations(sessionExercises, ({ one }) => ({
+  exercise: one(exercises, {
+    fields: [sessionExercises.exerciseId],
+    references: [exercises.id],
+  }),
+  session: one(sessions, {
+    fields: [sessionExercises.sessionId],
+    references: [sessions.id],
+  }),
+}));
 
 // A set logged before the top set, at a lower weight, in the same exercise is inferred
 // as a warm-up at read time. is_warmup_override lets the user flip that inference.

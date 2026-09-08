@@ -257,7 +257,7 @@ Marks a lift whose top set beat the previous session on the same equipment varia
 
 ### Logging screen
 - Last session's numbers sit directly above the entry fields, never behind navigation.
-- Weight and reps use +/- steppers (5 lb and 1 rep increments), tap the number for
+- Weight and reps use +/- steppers (2.5 lb and 1 rep increments), tap the number for
   direct entry. Faster one-handed than a keypad.
 - RIR is a row of five tap targets (0,1,2,3,4+), defaulting to last session's value.
 - Warm-up sets render greyed automatically via inference; tap to override.

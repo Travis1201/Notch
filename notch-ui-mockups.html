@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Notch — UI reference mockups</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root {
+    --surface-0: #f4f3ef;
+    --surface-1: #ffffff;
+    --surface-2: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.15);
+    --text-primary: #1a1a18;
+    --text-secondary: #5f5e5a;
+    --text-muted: #888780;
+    --text-success: #3b6d11;
+    --accent: #185FA5;
+    --accent-light: #85B7EB;
+    --accent-lighter: #B5D4F4;
+  }
+  body {
+    margin: 0;
+    padding: 40px 24px;
+    background: var(--surface-0);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text-primary);
+  }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 6px; }
+  p.note { font-size: 14px; color: var(--text-secondary); max-width: 640px; margin: 0 0 36px; line-height: 1.6; }
+  .row {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .screen-block { display: flex; flex-direction: column; gap: 10px; }
+  .screen-label { font-size: 13px; font-weight: 500; color: var(--text-secondary); text-align: center; }
+  .phone {
+    width: 320px;
+    background: var(--surface-2);
+    border: 0.5px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .hairline { border-bottom: 0.5px solid var(--border); }
+  .tabbar {
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    padding: 10px 0 12px;
+  }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tab i { font-size: 19px; color: var(--text-muted); }
+  .tab span { font-size: 10px; color: var(--text-muted); }
+  .tab.active i, .tab.active span { color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<h1>Notch — UI reference mockups</h1>
+<p class="note">
+  Layout and hierarchy references for three key screens, from the earlier design pass.
+  Match structure, spacing, and information hierarchy — not exact colors or the icon
+  library (Tabler icons here are placeholders). CLAUDE.md is the source of truth for
+  actual color values, component behavior, and every product decision.
+</p>
+
+<div class="row">
+
+  <!-- HOME SCREEN -->
+  <div class="screen-block">
+    <div class="screen-label">Home</div>
+    <div class="phone">
+      <div class="hairline" style="padding: 20px 18px 16px; display: flex; align-items: flex-start; justify-content: space-between;">
+        <div>
+          <div style="font-size: 22px; font-weight: 500; margin-bottom: 2px;">Monday</div>
+          <div style="font-size: 13px; color: var(--text-muted);">Last lifted 2 days ago</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; padding: 5px 10px; background: var(--surface-0); border-radius: 20px;">
+          <i class="ti ti-map-pin" style="font-size: 12px; color: var(--text-secondary);"></i>
+          <span style="font-size: 12px; color: var(--text-secondary);">Rec Center</span>
+        </div>
+      </div>
+
+      <div style="padding: 0 18px;">
+
+        <div style="background: var(--accent); border-radius: 16px; padding: 18px; margin: 18px 0 20px;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px;">
+            <div style="font-size: 24px; font-weight: 500; color: #fff;">Legs</div>
+            <div style="font-size: 12px; color: var(--accent-lighter);">8 days ago</div>
+          </div>
+          <div style="margin-bottom: 18px;">
+            <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 0.5px solid rgba(255,255,255,0.16);">
+              <span style="font-size: 13px; color: #fff;">Back squat</span>
+              <span style="font-size: 13px; color: var(--accent-light);">275 × 6</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 0.5px solid rgba(255,255,255,0.16);">
+              <span style="font-size: 13px; color: #fff;">Romanian deadlift</span>
+              <span style="font-size: 13px; color: var(--accent-light);">225 × 8</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 7px 0;">
+              <span style="font-size: 13px; color: var(--accent-light);">+ 3 more</span>
+            </div>
+          </div>
+          <div style="height: 46px; background: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 7px;">
+            <i class="ti ti-player-play" style="font-size: 17px; color: var(--accent);"></i>
+            <span style="font-size: 15px; font-weight: 500; color: var(--accent);">Start workout</span>
+          </div>
+        </div>
+
+        <div style="padding-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 11px; padding: 13px 0; border-bottom: 0.5px solid var(--border);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-light);"></div>
+            <span style="font-size: 15px; flex: 1;">Push day</span>
+            <span style="display: flex; align-items: center; gap: 2px;">
+              <i class="ti ti-arrow-up-right" style="font-size: 13px; color: var(--text-success);"></i>
+              <span style="font-size: 12px; color: var(--text-success);">1</span>
+            </span>
+            <span style="font-size: 12px; color: var(--text-muted); width: 58px; text-align: right;">4 days ago</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 11px; padding: 13px 0; border-bottom: 0.5px solid var(--border);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #97C459;"></div>
+            <span style="font-size: 15px; flex: 1;">Pull day</span>
+            <span style="display: flex; align-items: center; gap: 2px;">
+              <i class="ti ti-arrow-up-right" style="font-size: 13px; color: var(--text-success);"></i>
+              <span style="font-size: 12px; color: var(--text-success);">2</span>
+            </span>
+            <span style="font-size: 12px; color: var(--text-muted); width: 58px; text-align: right;">2 days ago</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 11px; padding: 13px 0;">
+            <i class="ti ti-plus" style="font-size: 15px; color: var(--text-muted); width: 8px;"></i>
+            <span style="font-size: 15px; color: var(--text-secondary); flex: 1; margin-left: 5px;">Empty workout</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><i class="ti ti-home"></i><span>Home</span></div>
+        <div class="tab"><i class="ti ti-chart-line"></i><span>Progress</span></div>
+        <div class="tab"><i class="ti ti-list"></i><span>Exercises</span></div>
+        <div class="tab"><i class="ti ti-calendar"></i><span>History</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVE WORKOUT / LOGGING SCREEN -->
+  <div class="screen-block">
+    <div class="screen-label">Active workout (logging)</div>
+    <div class="phone">
+      <div class="hairline" style="padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i class="ti ti-chevron-left" style="font-size: 18px; color: var(--text-secondary);"></i>
+          <span style="font-size: 15px; font-weight: 500;">Push day</span>
+        </div>
+        <span style="font-size: 13px; color: var(--text-muted);">42:18</span>
+      </div>
+
+      <div style="padding: 16px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px;">
+          <span style="font-size: 18px; font-weight: 500;">Chest press</span>
+          <span style="font-size: 12px; color: var(--text-muted);">3 of 6</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 14px;">
+          <i class="ti ti-settings-bolt" style="font-size: 14px; color: var(--text-muted);"></i>
+          <span style="font-size: 13px; color: var(--text-secondary);">Hammer Strength</span>
+        </div>
+
+        <div style="background: #e6f1fb; border-radius: 8px; padding: 10px 12px; margin-bottom: 16px;">
+          <div style="font-size: 11px; color: var(--accent); margin-bottom: 3px;">Last time · Aug 31</div>
+          <div style="font-size: 14px; color: var(--accent); font-weight: 500;">225 × 7 @ 1 RIR</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px;">
+            <span style="font-size: 12px; color: var(--text-muted); width: 14px;">1</span>
+            <span style="font-size: 14px; color: var(--text-muted); flex: 1;">135 × 8</span>
+            <span style="font-size: 11px; color: var(--text-muted);">warm-up</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px;">
+            <span style="font-size: 12px; color: var(--text-muted); width: 14px;">2</span>
+            <span style="font-size: 14px; color: var(--text-muted); flex: 1;">185 × 6</span>
+            <span style="font-size: 11px; color: var(--text-muted);">warm-up</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: var(--surface-0); border-radius: 8px;">
+            <span style="font-size: 12px; color: var(--text-secondary); width: 14px;">3</span>
+            <span style="font-size: 14px; font-weight: 500; flex: 1;">230 × 7</span>
+            <span style="font-size: 12px; color: var(--text-secondary);">1 RIR</span>
+            <i class="ti ti-arrow-up-right" style="font-size: 14px; color: var(--text-success);"></i>
+          </div>
+        </div>
+
+        <div class="hairline" style="padding-top: 14px;">
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-align: center;">Weight</div>
+              <div style="display: flex; align-items: center; border: 0.5px solid var(--border-strong); border-radius: 8px; height: 44px;">
+                <div style="width: 30px; text-align: center; color: var(--text-secondary); font-size: 16px;">−</div>
+                <div style="flex: 1; text-align: center; font-size: 17px; font-weight: 500;">230</div>
+                <div style="width: 30px; text-align: center; color: var(--text-secondary); font-size: 16px;">+</div>
+              </div>
+            </div>
+            <div style="flex: 1;">
+              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-align: center;">Reps</div>
+              <div style="display: flex; align-items: center; border: 0.5px solid var(--border-strong); border-radius: 8px; height: 44px;">
+                <div style="width: 30px; text-align: center; color: var(--text-secondary); font-size: 16px;">−</div>
+                <div style="flex: 1; text-align: center; font-size: 17px; font-weight: 500;">7</div>
+                <div style="width: 30px; text-align: center; color: var(--text-secondary); font-size: 16px;">+</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 5px;">RIR</div>
+            <div style="display: flex; gap: 5px;">
+              <div style="flex: 1; height: 34px; border: 0.5px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-secondary);">0</div>
+              <div style="flex: 1; height: 34px; border: 0.5px solid var(--border-strong); background: var(--surface-0); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500;">1</div>
+              <div style="flex: 1; height: 34px; border: 0.5px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-secondary);">2</div>
+              <div style="flex: 1; height: 34px; border: 0.5px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-secondary);">3</div>
+              <div style="flex: 1; height: 34px; border: 0.5px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-secondary);">4+</div>
+            </div>
+          </div>
+
+          <div style="height: 48px; background: var(--text-primary); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 500;">Log set</div>
+        </div>
+
+        <div class="hairline" style="margin-top: 14px; padding-top: 12px; padding-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: none;">
+          <span style="font-size: 13px; color: var(--text-secondary);">Next · Incline DB press</span>
+          <i class="ti ti-arrow-right" style="font-size: 15px; color: var(--text-muted);"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROGRESS DETAIL SCREEN -->
+  <div class="screen-block">
+    <div class="screen-label">Progress detail</div>
+    <div class="phone">
+      <div class="hairline" style="padding: 14px 16px; display: flex; align-items: center; gap: 8px;">
+        <i class="ti ti-chevron-left" style="font-size: 18px; color: var(--text-secondary);"></i>
+        <span style="font-size: 15px; font-weight: 500;">Chest press</span>
+      </div>
+
+      <div style="padding: 14px 16px 0; display: flex; gap: 6px;">
+        <div style="padding: 5px 11px; background: var(--accent); border-radius: 20px; font-size: 12px; color: #fff;">Hammer Strength</div>
+        <div style="padding: 5px 11px; border: 0.5px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text-secondary);">Technogym</div>
+      </div>
+
+      <div style="padding: 16px 16px 0;">
+        <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px;">
+          <span style="font-size: 26px; font-weight: 500;">230 × 7</span>
+          <span style="display: flex; align-items: center; gap: 2px;">
+            <i class="ti ti-arrow-up-right" style="font-size: 14px; color: var(--text-success);"></i>
+            <span style="font-size: 13px; color: var(--text-success);">35 lb</span>
+          </span>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Best top set · up 35 lb since July</div>
+      </div>
+
+      <div style="padding: 0 16px;">
+        <svg viewBox="0 0 300 132" style="width: 100%; height: auto;">
+          <line x1="0" y1="118" x2="300" y2="118" stroke="var(--border)" stroke-width="1"/>
+          <polyline points="10,104 50,93 90,82 130,82 170,59 210,48 250,37 290,26" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="10" cy="104" r="3" fill="var(--accent)"/>
+          <circle cx="50" cy="93" r="3" fill="var(--accent)"/>
+          <circle cx="90" cy="82" r="3" fill="var(--accent)"/>
+          <circle cx="130" cy="82" r="3" fill="var(--accent)"/>
+          <circle cx="170" cy="59" r="3" fill="var(--accent)"/>
+          <circle cx="210" cy="48" r="3" fill="var(--accent)"/>
+          <circle cx="250" cy="37" r="3" fill="var(--accent)"/>
+          <circle cx="290" cy="26" r="5" fill="var(--accent)"/>
+          <text x="10" y="129" font-size="9" fill="var(--text-muted)" text-anchor="start">Jul 12</text>
+          <text x="290" y="129" font-size="9" fill="var(--text-muted)" text-anchor="end">Sep 6</text>
+        </svg>
+      </div>
+
+      <div style="padding: 16px 16px 0;">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Recent sessions</div>
+        <div style="display: flex; align-items: center; padding: 10px 0; border-bottom: 0.5px solid var(--border);">
+          <span style="font-size: 12px; color: var(--text-muted); width: 54px;">Sep 6</span>
+          <span style="font-size: 14px; flex: 1;">230 × 7</span>
+          <span style="font-size: 12px; color: var(--text-muted); margin-right: 8px;">1 RIR</span>
+          <i class="ti ti-arrow-up-right" style="font-size: 14px; color: var(--text-success);"></i>
+        </div>
+        <div style="display: flex; align-items: center; padding: 10px 0; border-bottom: 0.5px solid var(--border);">
+          <span style="font-size: 12px; color: var(--text-muted); width: 54px;">Aug 31</span>
+          <span style="font-size: 14px; flex: 1;">225 × 7</span>
+          <span style="font-size: 12px; color: var(--text-muted); margin-right: 8px;">1 RIR</span>
+          <i class="ti ti-arrow-up-right" style="font-size: 14px; color: var(--text-success);"></i>
+        </div>
+        <div style="display: flex; align-items: center; padding: 10px 0; border-bottom: 0.5px solid var(--border);">
+          <span style="font-size: 12px; color: var(--text-muted); width: 54px;">Aug 24</span>
+          <span style="font-size: 14px; flex: 1;">220 × 6</span>
+          <span style="font-size: 12px; color: var(--text-muted); margin-right: 8px;">0 RIR</span>
+          <i class="ti ti-arrow-up-right" style="font-size: 14px; color: var(--text-success);"></i>
+        </div>
+        <div style="display: flex; align-items: center; padding: 10px 0;">
+          <span style="font-size: 12px; color: var(--text-muted); width: 54px;">Aug 17</span>
+          <span style="font-size: 14px; flex: 1;">215 × 7</span>
+          <span style="font-size: 12px; color: var(--text-muted); margin-right: 8px;">2 RIR</span>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab"><i class="ti ti-home"></i><span>Home</span></div>
+        <div class="tab active"><i class="ti ti-chart-line"></i><span>Progress</span></div>
+        <div class="tab"><i class="ti ti-list"></i><span>Exercises</span></div>
+        <div class="tab"><i class="ti ti-calendar"></i><span>History</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
 
 import { openDb, type Database } from './client';
+import { runBootstrap } from './bootstrap';
 import migrations from './migrations/migrations';
 
 const DatabaseContext = createContext<Database | null>(null);
@@ -24,6 +25,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     openDb()
       .then(async ({ db: openedDb }) => {
         await migrate(openedDb, migrations);
+        await runBootstrap(openedDb);
         if (!cancelled) setDb(openedDb);
       })
       .catch((e) => {
