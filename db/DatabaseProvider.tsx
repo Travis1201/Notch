@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
 
+import { colors } from '../constants/theme';
 import { openDb, type Database } from './client';
 import { runBootstrap } from './bootstrap';
 import migrations from './migrations/migrations';
@@ -38,17 +39,18 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
 
   if (error) {
     return (
-      <View style={styles.center}>
+      <ScrollView contentContainerStyle={styles.center}>
         <Text style={styles.errorTitle}>Database failed to load</Text>
         <Text style={styles.errorMessage}>{error.message}</Text>
-      </View>
+        {error.stack ? <Text style={styles.errorStack}>{error.stack}</Text> : null}
+      </ScrollView>
     );
   }
 
   if (!db) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#185FA5" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -58,20 +60,27 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   center: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.pageBg,
     padding: 24,
   },
   errorTitle: {
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 8,
+    color: colors.textPrimary,
   },
   errorMessage: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     textAlign: 'center',
+  },
+  errorStack: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 16,
+    fontFamily: 'monospace',
   },
 });

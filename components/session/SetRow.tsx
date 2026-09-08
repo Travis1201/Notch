@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 8,
   },
-  rowHighlighted: { backgroundColor: colors.surface0 },
+  rowHighlighted: { backgroundColor: colors.surface3 },
   index: { fontSize: 12, color: colors.textSecondary, width: 14 },
   reading: { fontSize: 14, fontWeight: '500', color: colors.textPrimary, flex: 1 },
   muted: { color: colors.textMuted, fontWeight: '400' },

@@ -24,6 +24,7 @@ export function CreateExerciseForm({ onCreate, onCancel }: Props) {
         value={name}
         onChangeText={setName}
         placeholder="e.g. Leg press"
+        placeholderTextColor={colors.textMuted}
         autoFocus
       />
       <Text style={styles.fieldLabel}>Muscle group</Text>
@@ -32,6 +33,7 @@ export function CreateExerciseForm({ onCreate, onCancel }: Props) {
         value={muscleGroup}
         onChangeText={setMuscleGroup}
         placeholder="e.g. Legs"
+        placeholderTextColor={colors.textMuted}
       />
       <Text style={styles.fieldLabel}>Equipment type</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
@@ -64,7 +66,7 @@ export function CreateExerciseForm({ onCreate, onCancel }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
+  container: { padding: 16, backgroundColor: colors.surface1, flex: 1 },
   fieldLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 6, marginTop: 14 },
   input: {
     borderWidth: 0.5,
@@ -74,6 +76,7 @@ const styles = StyleSheet.create({
     height: 44,
     fontSize: 15,
     color: colors.textPrimary,
+    backgroundColor: colors.surface2,
   },
   pillRow: { flexDirection: 'row' },
   pill: {
@@ -94,7 +97,7 @@ const styles = StyleSheet.create({
     flex: 2,
     height: 46,
     borderRadius: 8,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },

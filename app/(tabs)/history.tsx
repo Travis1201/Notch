@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { colors } from '../../constants/theme';
+
 export default function HistoryScreen() {
   return (
     <View style={styles.container}>
@@ -9,6 +11,11 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 20, fontWeight: '600' },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface1,
+  },
+  title: { fontSize: 20, fontWeight: '600', color: colors.textPrimary },
 });

@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { getInProgressSession, startEmptySession, autoCloseStaleSessions } from '../../db/queries/sessions';
 import { getDefaultGym } from '../../db/queries/gyms';
+import { listExercises } from '../../db/queries/exercises';
 import { seedTestData } from '../../db/dev/seedTestData';
 import type { Session } from '../../db/types';
 
@@ -14,6 +15,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [inProgressSession, setInProgressSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -40,6 +42,26 @@ export default function HomeScreen() {
     router.push(`/session/${session.id}`);
   }
 
+  async function handleSeedTestData() {
+    setSeeding(true);
+    try {
+      const before = (await listExercises(db)).length;
+      await seedTestData(db);
+      const after = (await listExercises(db)).length;
+      if (before > 0) {
+        Alert.alert('Already seeded', `${before} exercise(s) already exist — seeding is skipped once anything's there.`);
+      } else if (after === 0) {
+        Alert.alert('Seed ran but inserted nothing', 'Check the default gym exists.');
+      } else {
+        Alert.alert('Seeded', `Inserted ${after} exercise(s) with fake history.`);
+      }
+    } catch (e) {
+      Alert.alert('Seeding failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Home</Text>
@@ -60,13 +82,10 @@ export default function HomeScreen() {
       )}
 
       {__DEV__ && (
-        <Pressable
-          style={styles.devButton}
-          onPress={async () => {
-            await seedTestData(db);
-          }}
-        >
-          <Text style={styles.devButtonLabel}>Seed test data (dev only)</Text>
+        <Pressable style={styles.devButton} onPress={handleSeedTestData} disabled={seeding}>
+          <Text style={styles.devButtonLabel}>
+            {seeding ? 'Seeding…' : 'Seed test data (dev only)'}
+          </Text>
         </Pressable>
       )}
     </View>

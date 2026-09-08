@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   },
   targetSelected: {
     borderColor: colors.borderStrong,
-    backgroundColor: colors.surface0,
+    backgroundColor: colors.surface3,
   },
   targetText: { fontSize: 14, color: colors.textSecondary },
   targetTextSelected: { fontWeight: '600', color: colors.textPrimary },

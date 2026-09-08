@@ -204,9 +204,15 @@ export function ActiveExercisePanel({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.surface1 },
   content: { padding: 16 },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: colors.surface1,
+  },
   loadingText: { color: colors.textMuted },
   titleRow: {
     flexDirection: 'row',
@@ -217,13 +223,13 @@ const styles = StyleSheet.create({
   exerciseName: { fontSize: 18, fontWeight: '600', color: colors.textPrimary },
   positionLabel: { fontSize: 12, color: colors.textMuted },
   lastTimeBox: {
-    backgroundColor: colors.accentTint,
+    backgroundColor: colors.accentTintBg,
     borderRadius: 8,
     padding: 10,
     marginBottom: 16,
   },
-  lastTimeLabel: { fontSize: 11, color: colors.accent, marginBottom: 3 },
-  lastTimeValue: { fontSize: 14, fontWeight: '600', color: colors.accent },
+  lastTimeLabel: { fontSize: 11, color: colors.accentLight, marginBottom: 3 },
+  lastTimeValue: { fontSize: 14, fontWeight: '600', color: colors.accentLight },
   setsList: { gap: 6, marginBottom: 14 },
   entrySection: {
     borderTopWidth: 0.5,
@@ -234,7 +240,7 @@ const styles = StyleSheet.create({
   logButton: {
     height: 48,
     borderRadius: 8,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,

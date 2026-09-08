@@ -1,14 +1,18 @@
 import { Tabs } from 'expo-router';
 
-const ACCENT = '#185FA5';
+import { colors } from '../../constants/theme';
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: ACCENT,
-        tabBarInactiveTintColor: '#8A8A8E',
+        tabBarActiveTintColor: colors.textPrimary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.surface2,
+          borderTopColor: colors.border,
+        },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />

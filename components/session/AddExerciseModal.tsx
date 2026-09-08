@@ -60,6 +60,7 @@ export function AddExerciseModal({ visible, onClose, onSelect }: Props) {
             <TextInput
               style={styles.searchInput}
               placeholder="Search exercises"
+              placeholderTextColor={colors.textMuted}
               value={query}
               onChangeText={setQuery}
             />
@@ -104,6 +105,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 15,
+    color: colors.textPrimary,
+    backgroundColor: colors.surface2,
   },
   resultRow: {
     flexDirection: 'row',

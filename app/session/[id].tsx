@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     height: 48,
     paddingHorizontal: 24,
     borderRadius: 8,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
