@@ -122,6 +122,49 @@ section said 5 lb stepper increments while the dedicated "Weight increments" sec
 said 2.5 lb "not 5" — caught by cross-referencing the two sections rather than
 implementing the first one found, and resolved by asking rather than guessing.
 
+## Knowing which tool NOT to reach for
+
+The two gesture features — drag an exercise to reorder, swipe a set to delete — are the
+clearest case in this project of the obvious technical answer being the wrong one. The
+standard stack for both is `react-native-gesture-handler` plus
+`react-native-reanimated`, usually with `react-native-draggable-flatlist` on top. That
+combination had already been tried here, and it didn't degrade — it made the active
+workout screen fail to render at all, and the work was reverted. (Best reading of the
+cause: `react-native-draggable-flatlist` is unmaintained and leans on Reanimated 2/3
+APIs that Reanimated 4 removed.)
+
+Reaching for it again, better configured, was one option. The other was React Native's
+built-in `PanResponder` and `Animated`: less capable, gesture handling on the JS thread
+instead of the UI thread, and more geometry to write by hand — but nothing that can fail
+at import time, no native module to mismatch, no babel plugin, and no Expo Go
+compatibility question.
+
+The deciding factor was **not being able to test.** There is no Mac, no simulator, and no
+device in this environment, so the only signals available are `tsc` and a Metro bundle
+build — neither of which has anything to say about whether a gesture works. When the
+feedback loop can't distinguish "smooth" from "broken," the right move is to pick the
+option whose worst case is "feels imprecise" over the one whose worst case is "blank
+screen," and pay for it in hand-written index arithmetic. That inverts the usual
+library-versus-DIY instinct, and it only inverts because of the testing constraint.
+
+Three things were put in place alongside the code, for the same reason:
+
+- **A tagged known-good commit** (`pre-gestures`) and a separate branch for the work, so
+  reverting is one command rather than an archaeology exercise. Worth noting that the
+  baseline commit had to be *created* first — several sessions of work were sitting
+  uncommitted, meaning there was no revert point at all at the moment one was requested.
+- **Runtime kill switches** (`constants/features.ts`) for each gesture independently, so
+  a bad feel can be switched off from the couch without git, and so the two features
+  can be evaluated separately rather than as one change.
+- **Fallbacks that are complete, not degraded.** With swipe off, a set is still deletable
+  from its edit modal. That matters: a feature flag whose "off" state is broken isn't a
+  safety mechanism.
+
+The honest status is that all of it is unverified. A clean bundle and a clean type-check
+are evidence that the code is *well-formed*, not that the gesture is *good* — and this
+project has already learned that distinction the expensive way, when the
+single-exercise stepper passed every static check and then failed at the gym.
+
 ## Where AI assistance helped, and where it didn't
 
 **Helped**: scaffolding speed (a working Expo + expo-router + Drizzle/SQLite project

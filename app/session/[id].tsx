@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,10 @@ import { useRestTimerNotifications } from '../../hooks/useRestTimerNotifications
 import { getTemplate, getTemplateExercises, setTemplateExercises } from '../../db/queries/templates';
 import { computeDurationSeconds } from '../../lib/sessionDuration';
 import { ExerciseCard } from '../../components/session/ExerciseCard';
+import {
+  DraggableExerciseList,
+  type DragScrollController,
+} from '../../components/session/DraggableExerciseList';
 import { RestTimerBar } from '../../components/session/RestTimerBar';
 import { AddExerciseModal } from '../../components/session/AddExerciseModal';
 import {
@@ -49,10 +53,12 @@ function formatElapsed(startedAt: Date, now: number): string {
 // with no way back — finalising stores a duration and turns the session into a
 // completed record later sessions get compared against.
 //
-// Reordering has NO UI at the moment, deliberately. The up/down-arrow sheet it used
-// to live in was removed at the requester's direction, pending a real drag-to-reorder
-// gesture (tracked in ARCHITECTURE.md's limitations, alongside swipe-to-delete on a
-// set). `activeSessionStore.reorderExercises` is retained for that work.
+// Reordering is drag-and-drop by the grip handle in each card's header — see
+// components/session/DraggableExerciseList.tsx, which also documents why it's built on
+// PanResponder rather than a gesture library. This screen's only part in it is the
+// scroll plumbing: a drag has to be able to read where the viewport is, how far the
+// content is scrolled, and drive the scroll itself to auto-scroll when a card is held
+// near an edge.
 export default function ActiveSessionScreen() {
   useKeepAwake(); // CLAUDE.md Gotchas: keep screen awake during an active workout
   useRestTimerNotifications();
@@ -68,11 +74,13 @@ export default function ActiveSessionScreen() {
   const setsByVariant = useActiveSessionStore((s) => s.setsByEquipmentVariantId);
   const loadSession = useActiveSessionStore((s) => s.loadSession);
   const addExercise = useActiveSessionStore((s) => s.addExercise);
+  const reorderExercises = useActiveSessionStore((s) => s.reorderExercises);
   const finish = useActiveSessionStore((s) => s.finish);
   const cancel = useActiveSessionStore((s) => s.cancel);
   const reset = useActiveSessionStore((s) => s.reset);
 
   const [addExerciseModalVisible, setAddExerciseModalVisible] = useState(false);
+  const [isDraggingExercise, setIsDraggingExercise] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [templateName, setTemplateName] = useState<string | null>(null);
 
@@ -111,6 +119,32 @@ export default function ActiveSessionScreen() {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollWrapperRef = useRef<View>(null);
+  const scrollOffsetRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  // Window coordinates, cached from onLayout. The drag compares a gesture's absolute
+  // `moveY` against these to decide when to auto-scroll, and measureInWindow is async
+  // so it can't be called from inside the gesture — it's resolved here instead, and
+  // re-resolved whenever layout changes (the rest-timer bar appearing, for instance).
+  const scrollViewportRef = useRef({ top: 0, height: 0 });
+
+  const handleScrollWrapperLayout = useCallback(() => {
+    scrollWrapperRef.current?.measureInWindow((_x, y, _width, height) => {
+      scrollViewportRef.current = { top: y, height };
+    });
+  }, []);
+
+  const dragScroll = useMemo<DragScrollController>(
+    () => ({
+      scrollTo: (y) => scrollRef.current?.scrollTo({ y, animated: false }),
+      getOffset: () => scrollOffsetRef.current,
+      getContentHeight: () => contentHeightRef.current,
+      getViewport: () => scrollViewportRef.current,
+    }),
+    [],
+  );
 
   const allSets = useMemo(() => Object.values(setsByVariant).flat(), [setsByVariant]);
 
@@ -230,20 +264,51 @@ export default function ActiveSessionScreen() {
 
       <RestTimerBar />
 
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {exercises.length === 0 && (
-          <Text style={styles.emptyText}>Add an exercise below to get started.</Text>
-        )}
+      {/* collapsable={false} keeps this View in the native hierarchy on Android, which
+          measureInWindow needs; RN otherwise optimises away a layout-only View. */}
+      <View
+        ref={scrollWrapperRef}
+        style={styles.list}
+        onLayout={handleScrollWrapperLayout}
+        collapsable={false}
+      >
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.listContent}
+          // Handed to the drag while a card is held: auto-scroll drives the offset
+          // itself, and letting the ScrollView also respond would have the two fight
+          // over it. Programmatic scrollTo still works while this is false.
+          scrollEnabled={!isDraggingExercise}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          onContentSizeChange={(_width, height) => {
+            contentHeightRef.current = height;
+          }}
+        >
+          {exercises.length === 0 && (
+            <Text style={styles.emptyText}>Add an exercise below to get started.</Text>
+          )}
 
-        {exercises.map((sessionExercise) => (
-          <ExerciseCard key={sessionExercise.id} sessionExercise={sessionExercise} />
-        ))}
+          <DraggableExerciseList
+            items={exercises}
+            keyExtractor={(sessionExercise) => sessionExercise.id}
+            gap={16}
+            scroll={dragScroll}
+            onDraggingChange={setIsDraggingExercise}
+            onReorder={(orderedIds) => reorderExercises(db, orderedIds)}
+            renderItem={(sessionExercise, dragHandle) => (
+              <ExerciseCard sessionExercise={sessionExercise} dragHandle={dragHandle} />
+            )}
+          />
 
-        <Pressable style={styles.addExerciseRow} onPress={() => setAddExerciseModalVisible(true)}>
-          <Feather name="plus" size={16} color={colors.textSecondary} />
-          <Text style={styles.addExerciseLabel}>Add exercise</Text>
-        </Pressable>
-      </ScrollView>
+          <Pressable style={styles.addExerciseRow} onPress={() => setAddExerciseModalVisible(true)}>
+            <Feather name="plus" size={16} color={colors.textSecondary} />
+            <Text style={styles.addExerciseLabel}>Add exercise</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
 
       <AddExerciseModal
         visible={addExerciseModalVisible}

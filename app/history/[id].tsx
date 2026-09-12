@@ -79,6 +79,10 @@ export default function HistoryDetailScreen() {
   const [dateEditVisible, setDateEditVisible] = useState(false);
   const [addExerciseVisible, setAddExerciseVisible] = useState(false);
   const [editingSet, setEditingSet] = useState<{ variantId: string; setId: string | null } | null>(null);
+  // Swipe-to-delete open state, one row across the whole screen. Keyed by set id
+  // rather than per-exercise (as the live screen does it) because this screen owns
+  // every exercise's rows directly instead of delegating to ExerciseCard.
+  const [openSwipeSetId, setOpenSwipeSetId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -296,6 +300,16 @@ export default function HistoryDetailScreen() {
                         await updateSet(db, fullSet.id, { isWarmupOverride: !fullSet.isWarmupOverride });
                         load();
                       }}
+                      onDelete={async () => {
+                        setOpenSwipeSetId(null);
+                        await deleteSet(db, fullSet.id);
+                        load();
+                      }}
+                      isSwipeOpen={openSwipeSetId === s.id}
+                      onSwipeOpen={() => setOpenSwipeSetId(s.id)}
+                      onSwipeClose={() =>
+                        setOpenSwipeSetId((current) => (current === s.id ? null : current))
+                      }
                     />
                   );
                 })}

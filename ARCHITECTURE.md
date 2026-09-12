@@ -338,14 +338,82 @@ two when they aren't. There is no "+ Add set" control because there's nothing fo
 do — the entry row *is* the next set.
 
 `components/session/SetTableRow.tsx` renders a logged set with no inline controls, as in
-the mockup: tap opens `EditSetModal` (where both correcting and deleting the set live),
-long-press toggles the warm-up-inference override. Editing goes through a modal rather
-than in place because an inline editor put the keyboard over the field whenever the card
-sat near the bottom of a long scroll. Deleting lives behind the modal rather than as a
-per-row button or a swipe because the row is one tap target under a thumb, and because a
-swipe built on `react-native-gesture-handler`'s `Swipeable` previously caused this whole
-screen to fail to render (Reanimated 4 incompatibility). **Reordering currently has no
-UI at all** — see the limitations section.
+the mockup, and carries three gestures chosen so they can't be mistaken for each other:
+**tap** opens `EditSetModal`, **long press** toggles the warm-up-inference override, and
+**swipe left** reveals a Delete action. Editing goes through a modal rather than in place
+because an inline editor put the keyboard over the field whenever the card sat near the
+bottom of a long scroll. Delete exists in both places on purpose: the swipe is the fast
+path, the modal's button is the discoverable one, and the modal's confirms while the
+swipe doesn't — swiping and then tapping Delete is already two deliberate actions.
+
+Open state for the swipe is owned by the parent (`ExerciseCard`, or the history detail
+screen) rather than the row, so only one row can be open at a time; two rows hanging
+open at once reads as a rendering bug. It also closes whenever the exercise's set count
+changes, so a revealed Delete can never end up pointing at a row that has since moved.
+
+### Gestures, and why they use no gesture library
+
+Both the set swipe and the exercise drag are built on React Native's built-in
+`PanResponder` and `Animated`. This is the third attempt at these two features; the
+previous one used `react-native-gesture-handler` + `react-native-reanimated` +
+`react-native-draggable-flatlist` and made the active workout screen fail to render
+outright, forcing a revert. The likely cause is that `react-native-draggable-flatlist`
+is unmaintained and depends on Reanimated 2/3 APIs (`useAnimatedGestureHandler`) that
+Reanimated 4 removed.
+
+`PanResponder` and `Animated` ship inside React Native: no native module to mismatch,
+no babel plugin, no Expo Go compatibility question, and nothing that can throw at import
+time. The worst realistic failure mode is a gesture that feels imprecise rather than a
+blank screen — which matters more than smoothness here, because none of this can be
+verified without a phone. The cost is that gesture events cross into JS instead of
+staying on the UI thread; transforms still animate natively (`useNativeDriver: true`
+everywhere, consistently — mixing drivers on one value is itself a crash), so the JS work
+per move is a few dozen additions. RNGH's modern `Gesture` API plus Reanimated worklets
+is the upgrade path if the feel isn't good enough, and the geometry carries over.
+
+`constants/features.ts` holds a runtime kill switch for each of the two gestures. Flip
+one to `false` and fast refresh drops that feature back to the behaviour that preceded
+it — no rebuild, no git. Both fallbacks are fully usable rather than degraded: with drag
+off there is no reorder UI, and with swipe off a set is still deleted from
+`EditSetModal`.
+
+### Drag-to-reorder (`components/session/DraggableExerciseList.tsx`)
+
+A drag starts **only from the grip handle** in a card's header, never from the card body
+or a long press on it. That is what makes the gesture unambiguous: the handle claims the
+responder on touch-down, so a drag can never be confused with a scroll, and every other
+pixel of a very tall card still scrolls normally. A long-press-to-drag would fight the
+ScrollView and would also collide with the set rows' own long press.
+
+Nothing reorders during the drag. The dragged card follows the finger and its neighbours
+slide out of the way, all via transforms on top of an unchanged list order; only on
+release is the new order committed. Keeping React's tree stable during a gesture matters
+concretely — reordering mid-drag would move card instances around, and `ExerciseCard`
+holds the weight/reps/RIR entry row in local state.
+
+Each card's drop-slot height is its wrapper's `onLayout` height. The inter-card gap is
+therefore **padding on that wrapper**, not margin on the card (which is why
+`ExerciseCard` no longer sets `marginBottom` and the list takes a `gap` prop): margin
+sits outside the measured box, so every drop target would be off by one gap, compounding
+with distance. Drop offsets are summed from real measured heights rather than assuming a
+uniform row height, because these cards genuinely differ in height by hundreds of pixels
+depending on how many sets are logged.
+
+Auto-scroll runs while a card is held near a viewport edge, which the screen makes
+possible by handing the list a `DragScrollController` (read the offset and content
+height, read the viewport in window coordinates, drive `scrollTo`). Cards are tall
+enough that a long session spans several screens, so without it a card could not be
+moved more than a couple of positions. The scrolled distance is added to the card's
+translation, or the card would slide out from under a stationary thumb by exactly the
+amount scrolled.
+
+On release the new order is committed **immediately**, and the settle spring is usually
+cut short by the transform reset that follows — so a drop reads as a snap rather than a
+glide. That's the deliberate trade: committing at once keeps the captured order and
+what's on screen describing the same list at every instant, which is what makes starting
+a second drag right after a first one safe. Deferring the commit to the animation's
+completion callback would animate better and leave a ~300ms window in which a new drag
+reads a stale order.
 
 `useKeepAwake()` holds the screen on for the session; `useRestTimerNotifications()` is
 mounted once here.
@@ -499,20 +567,16 @@ drawn as a separate marked series.
 and both raise history-integrity questions — a deleted exercise's `equipmentVariants` are
 what every past set points at.
 
-**Reordering exercises mid-session has no UI.** CLAUDE.md requires reorder to be
-available mid-session, so this is a known, temporary gap rather than a decision. The
-up/down-arrow sheet that provided it was removed at the requester's direction in favour
-of waiting for real **drag-to-reorder**, which is the next piece of work here, together
-with **swipe-to-delete on a set** (currently behind `EditSetModal`). Both need a gesture
-stack, and that's the open risk: a previous attempt on
-`react-native-gesture-handler` + `react-native-reanimated` +
-`react-native-draggable-flatlist` broke the active workout screen outright (Reanimated 4
-incompatibility) and had to be reverted. Nothing on this screen depends on a gesture
-library today, and reintroducing one should be verified on a device before anything is
-built on top of it. `activeSessionStore.reorderExercises` and
-`db/queries/sessionExercises.ts`'s `reorderSessionExercises` are retained, unused, for
-exactly that work — they already take the fully reordered id list a drag interaction
-produces.
+**The two gestures have never run on a phone.** Drag-to-reorder and swipe-to-delete
+are the highest-risk code in the app for exactly that reason: gesture feel is the one
+thing a type-check and a bundle build say nothing about, and this is the third attempt
+at them. They're implemented without any gesture library precisely so a failure is
+survivable (see Gestures above), `constants/features.ts` can switch either off at
+runtime, and the commit before them is tagged `pre-gestures`. Specific things only a
+device can answer: whether the grip handle is big enough to hit one-handed, whether
+auto-scroll's speed and edge threshold feel right, whether JS-thread gesture handling
+is smooth enough with a long session on screen, and whether the swipe's
+horizontal-intent threshold rejects enough vertical drift to keep the list scrollable.
 
 **Two vestigial schema columns** (`sessionExercises.status`,
 `sessions.currentSessionExerciseId`) are left over from the abandoned stepper design and

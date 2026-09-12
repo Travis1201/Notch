@@ -23,6 +23,7 @@ import {
 import { fromLb, toLb, roundToStep } from '../../lib/units';
 import { resolvePrefillForRow } from '../../lib/prefill';
 import { SetTableRow } from './SetTableRow';
+import type { DragHandle } from './DraggableExerciseList';
 import { EditSetModal } from './EditSetModal';
 import { NumberStepper } from './NumberStepper';
 import { RirSelector } from './RirSelector';
@@ -30,6 +31,10 @@ import { EquipmentBrandPicker } from '../exercises/EquipmentBrandPicker';
 
 interface Props {
   sessionExercise: SessionExerciseVM;
+  // Supplied by DraggableExerciseList. The card renders the grip; the list owns the
+  // gesture. Optional so the card still works outside a draggable list (and when the
+  // drag feature flag is off).
+  dragHandle?: DragHandle;
 }
 
 const LAST_TIME_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
@@ -55,12 +60,15 @@ const LAST_TIME_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short',
 // row with its own number instead of repeating the top set's. Logging is one tap on
 // "Log set"; adjusting is one or two taps on a stepper first. There is no "+ Add set"
 // control because there is nothing for it to do — the entry row IS the next set.
-export function ExerciseCard({ sessionExercise }: Props) {
+export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   const db = useDatabase();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [brandPickerVisible, setBrandPickerVisible] = useState(false);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
+  // At most one set row in this exercise may be swiped open at a time; two rows hanging
+  // open at once reads as a rendering bug rather than a state.
+  const [openSwipeSetId, setOpenSwipeSetId] = useState<string | null>(null);
 
   // Entry row state, in DISPLAY units (lb or kg) — converted to lb only when the set
   // is actually logged, per CLAUDE.md "Units": store in pounds, convert at the UI
@@ -120,6 +128,10 @@ export function ExerciseCard({ sessionExercise }: Props) {
   // deliberately does NOT depend on anything the user types, so adjusting a stepper
   // and then logging can't be clobbered mid-edit.
   const setCount = setsThisSession.length;
+  useEffect(() => {
+    setOpenSwipeSetId(null);
+  }, [setCount]);
+
   useEffect(() => {
     if (!lastWorkingSetsLoaded) return;
     const prefill = resolvePrefillForRow(
@@ -208,8 +220,20 @@ export function ExerciseCard({ sessionExercise }: Props) {
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, dragHandle?.isDragging && styles.cardDragging]}>
       <View style={styles.titleRow}>
+        {dragHandle && (
+          // Drag starts here and nowhere else. Anchored at the far left, well away from
+          // the remove control, and generously padded because it is a small target that
+          // has to be hit reliably one-handed.
+          <View {...dragHandle.panHandlers} style={styles.dragHandle} hitSlop={10}>
+            <Feather
+              name="menu"
+              size={16}
+              color={dragHandle.isDragging ? colors.accentLight : colors.textMuted}
+            />
+          </View>
+        )}
         <Text style={styles.exerciseName}>{sessionExercise.name}</Text>
         <Pressable onPress={handleRemoveExercise} hitSlop={10} style={styles.removeButton}>
           <Feather name="x" size={16} color={colors.textMuted} />
@@ -256,6 +280,14 @@ export function ExerciseCard({ sessionExercise }: Props) {
               formatWeight={formatWeight}
               onOpenEdit={() => setEditingSetId(s.id)}
               onToggleWarmup={() => toggleWarmupOverride(db, s)}
+              onDelete={() => deleteLoggedSet(db, variantId, s.id)}
+              isSwipeOpen={openSwipeSetId === s.id}
+              onSwipeOpen={() => setOpenSwipeSetId(s.id)}
+              // Guarded: a row that was never open must not clear a sibling's open
+              // state when its own gesture settles closed.
+              onSwipeClose={() =>
+                setOpenSwipeSetId((current) => (current === s.id ? null : current))
+              }
             />
           ))}
         </View>
@@ -322,17 +354,20 @@ export function ExerciseCard({ sessionExercise }: Props) {
 // tint block for "Last time," 6px between set rows, and a hairline above the entry
 // controls.
 const styles = StyleSheet.create({
+  // No bottom margin: the inter-card gap is padding on DraggableExerciseList's
+  // wrapper instead, so a card's measured height is exactly its drop-slot height. A
+  // margin here would sit outside that measurement and every drop target would be off
+  // by one gap, compounding with distance.
   card: {
     backgroundColor: colors.surface1,
     borderRadius: 14,
     padding: 16,
-    marginBottom: 16,
   },
+  cardDragging: { borderWidth: 0.5, borderColor: colors.accent },
   loadingCard: {
     backgroundColor: colors.surface1,
     borderRadius: 14,
     padding: 24,
-    marginBottom: 16,
     alignItems: 'center',
   },
   loadingText: { color: colors.textMuted },
@@ -342,6 +377,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
+  dragHandle: { paddingRight: 10, paddingVertical: 4 },
   exerciseName: { fontSize: 18, fontWeight: '500', color: colors.textPrimary, flex: 1 },
   removeButton: { paddingLeft: 8 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14, paddingVertical: 2 },
