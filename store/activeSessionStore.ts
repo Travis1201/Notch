@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 
 import type { Database } from '../db/client';
-import type { SessionExerciseStatus, SessionStatus } from '../db/schema';
-import { getSession, setCurrentSessionExercise, finishSession } from '../db/queries/sessions';
+import type { SessionStatus } from '../db/schema';
+import { getSession, finishSession, cancelSession } from '../db/queries/sessions';
 import {
   listSessionExercises,
   addExerciseToSession,
-  skipSessionExercise,
-  unskipSessionExercise,
+  removeExerciseFromSession,
   reorderSessionExercises,
   updateSessionExerciseVariant,
 } from '../db/queries/sessionExercises';
@@ -20,8 +19,11 @@ import {
   listSetsForSession,
   logSet as logSetQuery,
   updateSet as updateSetQuery,
+  deleteSet as deleteSetQuery,
   getLastSessionTopSet,
+  getLastSessionWorkingSets,
 } from '../db/queries/sets';
+import type { PrefillSet } from '../lib/prefill';
 import type { Set as SetRow } from '../db/types';
 
 export type { SetRow };
@@ -30,15 +32,19 @@ export type { SetRow };
 // back to a freshly-constructed `[]` on every call broke Zustand's
 // useSyncExternalStore (a new reference each render looks like a perpetual change)
 // and crashed the app with "Maximum update depth exceeded" — see
-// components/session/ActiveExercisePanel.tsx.
+// components/session/ExerciseCard.tsx.
 export const EMPTY_SETS: SetRow[] = [];
 
+// CLAUDE.md "Active workout screen": no forced order, no "current exercise" pointer —
+// every exercise's section is visible and independently loggable at any time. This VM
+// no longer carries a skip/pending status: with nothing hidden and no order gating
+// anything, "skipped" isn't a real state, just "zero sets logged so far," which is
+// display-only (see setsByEquipmentVariantId).
 export interface SessionExerciseVM {
   id: string;
   exerciseId: string;
   name: string;
   position: number;
-  status: SessionExerciseStatus;
   equipmentVariantId: string;
   brand: string | null;
 }
@@ -48,18 +54,17 @@ interface ActiveSessionState {
   gymId: string | null;
   date: Date | null;
   status: SessionStatus | null;
-  currentSessionExerciseId: string | null;
+  templateId: string | null;
   exercises: SessionExerciseVM[];
   setsByEquipmentVariantId: Record<string, SetRow[]>;
   lastTopSetByEquipmentVariantId: Record<string, SetRow | null>;
+  lastWorkingSetsByEquipmentVariantId: Record<string, SetRow[]>;
   isHydrated: boolean;
 
   loadSession(db: Database, sessionId: string): Promise<void>;
   addExercise(db: Database, exerciseId: string, exerciseName: string): Promise<void>;
-  skipExercise(db: Database, sessionExerciseId: string): Promise<void>;
-  unskipExercise(db: Database, sessionExerciseId: string): Promise<void>;
+  removeExercise(db: Database, sessionExerciseId: string): Promise<void>;
   reorderExercises(db: Database, orderedIds: string[]): Promise<void>;
-  setCurrentExercise(db: Database, sessionExerciseId: string): Promise<void>;
   setExerciseBrand(
     db: Database,
     sessionExerciseId: string,
@@ -71,18 +76,18 @@ interface ActiveSessionState {
     equipmentVariantId: string,
     repFloor: number,
   ): Promise<SetRow | null>;
-  logSet(
-    db: Database,
-    input: { equipmentVariantId: string; weight: number; reps: number; rir: number },
-  ): Promise<SetRow>;
+  ensureLastWorkingSets(db: Database, equipmentVariantId: string): Promise<SetRow[]>;
+  logSet(db: Database, equipmentVariantId: string, values: PrefillSet): Promise<void>;
   updateSet(
     db: Database,
     setId: string,
     equipmentVariantId: string,
     patch: Partial<{ weight: number; reps: number; rir: number; isWarmupOverride: boolean | null }>,
   ): Promise<void>;
+  deleteLoggedSet(db: Database, equipmentVariantId: string, setId: string): Promise<void>;
   toggleWarmupOverride(db: Database, set: SetRow): Promise<void>;
   finish(db: Database): Promise<void>;
+  cancel(db: Database): Promise<void>;
   reset(): void;
 }
 
@@ -91,10 +96,11 @@ const initialState = {
   gymId: null,
   date: null,
   status: null,
-  currentSessionExerciseId: null,
+  templateId: null,
   exercises: [],
   setsByEquipmentVariantId: {},
   lastTopSetByEquipmentVariantId: {},
+  lastWorkingSetsByEquipmentVariantId: {},
   isHydrated: false,
 } satisfies Partial<ActiveSessionState>;
 
@@ -127,7 +133,6 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
         exerciseId: row.exerciseId,
         name: row.exercise.name,
         position: row.position,
-        status: row.status,
         equipmentVariantId: variant.id,
         brand: variant.brand,
       });
@@ -144,10 +149,11 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
       gymId: session.gymId,
       date: session.date,
       status: session.status,
-      currentSessionExerciseId: session.currentSessionExerciseId,
+      templateId: session.templateId,
       exercises,
       setsByEquipmentVariantId,
       lastTopSetByEquipmentVariantId: {},
+      lastWorkingSetsByEquipmentVariantId: {},
       isHydrated: true,
     });
   },
@@ -169,7 +175,6 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
       exerciseId,
       equipmentVariantId: variant.id,
     });
-    const session = await getSession(db, sessionId);
 
     set((state) => ({
       exercises: [
@@ -179,37 +184,62 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
           exerciseId,
           name: exerciseName,
           position: row.position,
-          status: row.status,
           equipmentVariantId: variant.id,
           brand: variant.brand,
         },
       ],
-      currentSessionExerciseId: session?.currentSessionExerciseId ?? state.currentSessionExerciseId,
     }));
   },
 
-  async skipExercise(db, sessionExerciseId) {
-    const { sessionId } = get();
+  // Drops an exercise out of the live session and forgets everything cached under it.
+  // Every per-variant cache is keyed by equipmentVariantId and has to be cleared
+  // together with the row: leaving the `sets` entry behind would resurrect the
+  // just-deleted sets into the next render of that variant if the exercise is
+  // re-added, and a stale lastTopSet/lastWorkingSets entry would keep feeding the
+  // re-added card a Previous column and green arrow computed before the removal.
+  //
+  // Only clears a variant's cache when no OTHER exercise in the session still points
+  // at it. Two session_exercise rows for the same exercise (e.g. the same movement
+  // added twice mid-workout) share one variant, so removing one must not blank the
+  // other's rows.
+  async removeExercise(db, sessionExerciseId) {
+    const { sessionId, exercises } = get();
     if (!sessionId) return;
-    await skipSessionExercise(db, sessionExerciseId);
-    const session = await getSession(db, sessionId);
-    set((state) => ({
-      exercises: state.exercises.map((e) =>
-        e.id === sessionExerciseId ? { ...e, status: 'skipped' } : e,
-      ),
-      currentSessionExerciseId: session?.currentSessionExerciseId ?? null,
-    }));
+    const target = exercises.find((e) => e.id === sessionExerciseId);
+    if (!target) return;
+
+    await removeExerciseFromSession(db, {
+      sessionId,
+      sessionExerciseId,
+      exerciseId: target.exerciseId,
+    });
+
+    set((state) => {
+      const remaining = state.exercises.filter((e) => e.id !== sessionExerciseId);
+      const variantStillInUse = remaining.some(
+        (e) => e.equipmentVariantId === target.equipmentVariantId,
+      );
+      if (variantStillInUse) return { exercises: remaining };
+
+      const variantId = target.equipmentVariantId;
+      const omit = <T,>(record: Record<string, T>): Record<string, T> => {
+        const { [variantId]: _removed, ...rest } = record;
+        return rest;
+      };
+      return {
+        exercises: remaining,
+        setsByEquipmentVariantId: omit(state.setsByEquipmentVariantId),
+        lastTopSetByEquipmentVariantId: omit(state.lastTopSetByEquipmentVariantId),
+        lastWorkingSetsByEquipmentVariantId: omit(state.lastWorkingSetsByEquipmentVariantId),
+      };
+    });
   },
 
-  async unskipExercise(db, sessionExerciseId) {
-    await unskipSessionExercise(db, sessionExerciseId);
-    set((state) => ({
-      exercises: state.exercises.map((e) =>
-        e.id === sessionExerciseId ? { ...e, status: 'pending' } : e,
-      ),
-    }));
-  },
-
+  // No UI calls this right now. The up/down-arrow reorder sheet it was written for was
+  // removed at the requester's direction pending a real drag-to-reorder gesture, and
+  // this action is exactly the shape that work needs (a fully reordered list of
+  // session_exercise ids), so it's retained rather than deleted and re-derived. See
+  // ARCHITECTURE.md's limitations section.
   async reorderExercises(db, orderedIds) {
     const { sessionId } = get();
     if (!sessionId) return;
@@ -226,17 +256,10 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
     });
   },
 
-  async setCurrentExercise(db, sessionExerciseId) {
-    const { sessionId } = get();
-    if (!sessionId) return;
-    await setCurrentSessionExercise(db, sessionId, sessionExerciseId);
-    set({ currentSessionExerciseId: sessionExerciseId });
-  },
-
-  // Mid-session brand change (the equipment row on the logging screen). Already-
+  // Mid-session brand change (the settings-bolt row on an exercise card). Already-
   // logged sets stay put — this only repoints what gets logged from here on, and a
-  // brand switch naturally starts a fresh warm-up/top-set history for the new
-  // variant, which is correct: it's genuinely a different machine.
+  // brand switch naturally starts fresh Previous/top-set/prefill data for the new
+  // variant (its cache key), which is correct: it's genuinely a different machine.
   async setExerciseBrand(db, sessionExerciseId, exerciseId, brand) {
     const { gymId } = get();
     if (!gymId) return;
@@ -252,9 +275,9 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
   async ensureLastTopSet(db, equipmentVariantId, repFloor) {
     const cached = get().lastTopSetByEquipmentVariantId[equipmentVariantId];
     if (cached !== undefined) return cached;
-    const { sessionId } = get();
-    if (!sessionId) return null;
-    const topSet = await getLastSessionTopSet(db, equipmentVariantId, sessionId, repFloor);
+    const { sessionId, date } = get();
+    if (!sessionId || !date) return null;
+    const topSet = await getLastSessionTopSet(db, equipmentVariantId, sessionId, repFloor, date);
     set((state) => ({
       lastTopSetByEquipmentVariantId: {
         ...state.lastTopSetByEquipmentVariantId,
@@ -264,22 +287,63 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
     return topSet;
   },
 
-  async logSet(db, input) {
+  async ensureLastWorkingSets(db, equipmentVariantId) {
+    const cached = get().lastWorkingSetsByEquipmentVariantId[equipmentVariantId];
+    if (cached !== undefined) return cached;
+    const { sessionId, date } = get();
+    if (!sessionId || !date) return EMPTY_SETS;
+    const workingSets = await getLastSessionWorkingSets(db, equipmentVariantId, sessionId, date);
+    set((state) => ({
+      lastWorkingSetsByEquipmentVariantId: {
+        ...state.lastWorkingSetsByEquipmentVariantId,
+        [equipmentVariantId]: workingSets,
+      },
+    }));
+    return workingSets;
+  },
+
+  // Writes one set to SQLite immediately and appends it to in-memory state — the only
+  // path by which a set gets logged. CLAUDE.md "In-progress sessions": "Each set
+  // writes to the database as it is logged, never batched to the end," because iOS
+  // terminates backgrounded apps and a phone call mid-workout must not wipe the
+  // session.
+  //
+  // The card's entry row (weight/reps/RIR) lives in component state, not here: it's
+  // ephemeral keystroke-level UI that re-seeds from lib/prefill on every logged set,
+  // and nothing outside that one card ever reads it. An earlier version kept an array
+  // of unconfirmed "draft" set rows in this store instead, one per predicted set, so
+  // that logging was a checkmark per row; the mockup's single always-pre-filled entry
+  // area does the same job in fewer taps (the next set's numbers are already there
+  // the instant the previous one is logged) without a second, parallel notion of "a
+  // set that exists but isn't real yet" to keep consistent with the database.
+  //
+  // Explicit fields, never `...values`: a spread here previously let a pre-filled
+  // object's own (stale, prior-session) `sessionId` overwrite the real one, filing
+  // every logged set under the wrong workout. Listing the fields makes that
+  // impossible to reintroduce even if a fat object reaches this function — and
+  // logSetQuery's NoExtraKeys guard now rejects one at compile time too.
+  async logSet(db, equipmentVariantId, values) {
     const { sessionId } = get();
-    if (!sessionId) throw new Error('No active session');
-    const row = await logSetQuery(db, { sessionId, ...input });
+    if (!sessionId) return;
+    const row = await logSetQuery(db, {
+      sessionId,
+      equipmentVariantId,
+      weight: values.weight,
+      reps: values.reps,
+      rir: values.rir,
+    });
     set((state) => ({
       setsByEquipmentVariantId: {
         ...state.setsByEquipmentVariantId,
-        [input.equipmentVariantId]: [
-          ...(state.setsByEquipmentVariantId[input.equipmentVariantId] ?? []),
-          row,
-        ],
+        [equipmentVariantId]: [...(state.setsByEquipmentVariantId[equipmentVariantId] ?? []), row],
       },
     }));
-    return row;
   },
 
+  // CLAUDE.md "Active workout screen": "Every logged set remains editable for the
+  // life of the session... logged is never the same as locked." Used both for
+  // correcting a confirmed set's weight/reps/RIR and for the warm-up override toggle
+  // — an edit rewrites the stored row in place, it never un-logs it.
   async updateSet(db, setId, equipmentVariantId, patch) {
     await updateSetQuery(db, setId, patch);
     set((state) => ({
@@ -287,6 +351,21 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
         ...state.setsByEquipmentVariantId,
         [equipmentVariantId]: (state.setsByEquipmentVariantId[equipmentVariantId] ?? []).map((s) =>
           s.id === setId ? { ...s, ...patch } : s,
+        ),
+      },
+    }));
+  },
+
+  // "If I accidentally added a 4th set I want to be able to delete it" — a logged set
+  // is editable for the life of the session (see updateSet above), and that includes
+  // removing it outright.
+  async deleteLoggedSet(db, equipmentVariantId, setId) {
+    await deleteSetQuery(db, setId);
+    set((state) => ({
+      setsByEquipmentVariantId: {
+        ...state.setsByEquipmentVariantId,
+        [equipmentVariantId]: (state.setsByEquipmentVariantId[equipmentVariantId] ?? []).filter(
+          (s) => s.id !== setId,
         ),
       },
     }));
@@ -306,6 +385,19 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
     const { sessionId } = get();
     if (!sessionId) return;
     await finishSession(db, sessionId);
+    get().reset();
+  },
+
+  // Throws the whole session away rather than finalising it — see
+  // db/queries/sessions.ts cancelSession for why finishing an untrained session isn't
+  // an equivalent exit. Resets unconditionally, even if cancelSession declined
+  // (session already complete or gone): either way this screen has nothing left to
+  // show, and holding onto a dead session's state would let the caller navigate back
+  // into it.
+  async cancel(db) {
+    const { sessionId } = get();
+    if (!sessionId) return;
+    await cancelSession(db, sessionId);
     get().reset();
   },
 

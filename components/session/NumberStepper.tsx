@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../../constants/theme';
+import { NumericField } from '../shared/NumericField';
 
 interface Props {
   label?: string;
@@ -14,19 +14,9 @@ interface Props {
 
 // Shared shape for weight and rep entry — CLAUDE.md "Logging screen": +/- steppers,
 // tap the number for direct entry (decimal-pad). 2.5 lb / 1 rep are the callers' step
-// values; this component itself is unit-agnostic.
+// values; this component itself is unit-agnostic. The tap-to-edit center value is
+// NumericField — see that component for the stale-zero bug fix.
 export function NumberStepper({ label, value, step, min = 0, onChange, formatValue }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
-
-  function commitDraft() {
-    const parsed = parseFloat(draft);
-    if (!Number.isNaN(parsed) && parsed >= min) {
-      onChange(parsed);
-    }
-    setEditing(false);
-  }
-
   return (
     <View style={styles.column}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -38,28 +28,14 @@ export function NumberStepper({ label, value, step, min = 0, onChange, formatVal
         >
           <Text style={styles.sign}>−</Text>
         </Pressable>
-        {editing ? (
-          <TextInput
-            style={styles.input}
-            value={draft}
-            onChangeText={setDraft}
-            onBlur={commitDraft}
-            onSubmitEditing={commitDraft}
-            keyboardType="decimal-pad"
-            autoFocus
-            selectTextOnFocus
-          />
-        ) : (
-          <Pressable
-            style={styles.valueTapTarget}
-            onPress={() => {
-              setDraft(String(value));
-              setEditing(true);
-            }}
-          >
-            <Text style={styles.value}>{formatValue ? formatValue(value) : value}</Text>
-          </Pressable>
-        )}
+        <NumericField
+          value={value}
+          onChange={onChange}
+          min={min}
+          formatValue={formatValue}
+          containerStyle={styles.valueTapTarget}
+          textStyle={styles.value}
+        />
         <Pressable style={styles.tapTarget} hitSlop={8} onPress={() => onChange(value + step)}>
           <Text style={styles.sign}>+</Text>
         </Pressable>
@@ -90,15 +66,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sign: { fontSize: 18, color: colors.textSecondary },
+  sign: { fontSize: 16, color: colors.textSecondary },
   valueTapTarget: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  value: { fontSize: 17, fontWeight: '600', color: colors.textPrimary },
-  input: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    padding: 0,
-  },
+  value: { fontSize: 17, fontWeight: '500', color: colors.textPrimary, textAlign: 'center' },
 });

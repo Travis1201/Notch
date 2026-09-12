@@ -51,18 +51,40 @@ into two explicit lanes instead of one:
 ## Design by iteration on artifacts
 
 `notch-ui-mockups.html` — three key screens (Home, active workout/logging, Progress
-detail) from an earlier design pass — is the structural reference for layout,
-hierarchy, and spacing; CLAUDE.md stays the source of truth for colors, component
-behavior, and every product decision the mockup doesn't settle. Reading it closely
-changed the logging screen's architecture in a way prose alone hadn't pinned down:
-CLAUDE.md says exercises must be reorderable and skippable and that "add exercise" is
-always reachable, but never says whether the screen shows every exercise in the session
-at once or one at a time. The mockup answers that concretely — a single focused
-exercise with a "3 of 6" position indicator and an explicit "Next" row to advance —
-which turned a planned scrollable stack of exercise cards into a single-exercise-focused
-paginated view, with skip/reorder/add-exercise/jump-to-exercise consolidated into one
-sheet reachable from the header instead of inline controls on every card. This is
-exactly the kind of thing a mockup catches that a spec description doesn't.
+detail) from an earlier design pass — is the structural reference for layout, hierarchy,
+and spacing; CLAUDE.md stays the source of truth for colors, component behavior, and
+every product decision the mockup doesn't settle. Reading it closely resolved things
+prose hadn't pinned down: CLAUDE.md says exercises must be reorderable and that "add
+exercise" is always reachable, but said nothing about whether the screen shows every
+exercise at once or one at a time.
+
+**The mockup answered that question, and the answer was wrong.** Its logging panel is a
+single focused exercise with a "3 of 6" position indicator and a "Next" row to advance,
+so that's what got built. Then it was used at the gym, and it failed for reasons no
+amount of looking at a static image would have surfaced: it locked the user into one
+exercise, made it impossible to jump around, and made already-logged sets uneditable.
+The screen was rebuilt as one scroll with every exercise visible, and CLAUDE.md gained a
+section marked SUPERSEDES recording that the stepper is rejected and must not come back —
+because the mockup still shows it, and a later pass would otherwise "correct" the working
+design back into the broken one.
+
+That is the real lesson of this section, and it cuts against the section's own premise:
+a mockup is excellent evidence about hierarchy, spacing, and what a screen should *feel*
+like, and weak evidence about interaction structure, which only survives contact with
+the actual use case — one-handed, sweaty, between sets. Using it at the gym cost one
+session and invalidated a design decision that had already been implemented twice.
+
+**The conflict resurfaced later, and got asked rather than guessed.** A subsequent
+request was "make it look exactly identical to the mockups — anything else will not be
+accepted", which, read literally, meant reinstating the rejected stepper. Rather than
+silently picking the spec over the instruction (or the reverse), the contradiction was
+put back to the requester with both options sketched: mockup styling on the scroll
+structure, or the literal mockup including the stepper. The answer was the former, and
+the mockup's visual language — the accent-tinted "Last time" block, the numbered set
+rows, the bordered steppers, the RIR pill row, the full-width "Log set" button — now
+appears verbatim inside a card that repeats down one scroll. Both documents note this
+explicitly, in `components/session/ExerciseCard.tsx`'s header comment, so the next
+reader doesn't have to rediscover which half of the mockup is authoritative.
 
 ## Constraint discovery before building, not after
 
@@ -78,11 +100,21 @@ CLAUDE.md alone:
   an empty table the moment the logging screen tried to read it.
 - `sessions.currentPosition`, a bare integer, can't represent "which exercise is
   current" once reorder and skip are both in play — an index into a list means
-  something different before and after a reorder. It's replaced with a durable FK
-  (`currentSessionExerciseId`) into a new `session_exercises` table, which also turned
-  out to be the only place "skipped" vs. "not yet reached" (both zero-set states, per
-  CLAUDE.md) could actually live, since `sets` has no way to represent an exercise that
-  has no sets at all.
+  something different before and after a reorder. It was replaced with a durable FK
+  (`currentSessionExerciseId`) into a new `session_exercises` table, which also looked
+  like the only place "skipped" vs. "not yet reached" could live, since `sets` has no way
+  to represent an exercise with no sets at all.
+
+  Worth recording that this analysis was *correct about the schema and wrong about the
+  product*. Both the FK and the `skipped` status only existed to serve the
+  single-exercise stepper; when that design was rejected, the questions they answered
+  stopped being questions — with no forced order there is no "current exercise", and
+  doing the last exercise first is identical to doing the first one first, so "skipped"
+  isn't a state either. `session_exercises` itself turned out to be load-bearing for a
+  completely different reason (an exercise has to exist in a session before anything is
+  logged for it), so the table survived and two of its columns are now documented dead
+  weight. Careful modelling of a mechanism can't tell you whether the mechanism should
+  exist.
 
 Both were fixed before writing the screen that would have silently depended on them.
 Separately, CLAUDE.md itself briefly contradicted its own spec — the "Logging screen"
@@ -100,6 +132,13 @@ directly; working around a real tooling limitation (drizzle-kit's rename-detecti
 prompt requires a TTY, unavailable in this shell) by splitting one schema change into
 two unambiguous additive/subtractive migrations instead of stalling on it.
 
+**Also helped**: mechanical breadth on work that's tedious rather than hard — growing
+the seed exercise library from ~60 movements to ~225 by regenerating
+`db/seedExercises.ts` from its CSV source rather than hand-editing two files toward each
+other, and noticing in passing that `ensureSeedExercises` was gated on a one-time "have
+we ever seeded?" check, which meant the expanded list would silently never reach any
+existing install.
+
 **Human judgment was the deciding factor for**: the app's name and its App Store
 positioning; resolving the weight-increment contradiction (the dedicated section's
 reasoning was more convincing, but it was a genuine two-reading ambiguity, not a typo
@@ -109,3 +148,9 @@ throughout, of what belongs in *this* build step versus what's explicitly deferr
 later one per CLAUDE.md's build order — the spec describes the whole app, and knowing
 which parts of it a given screen is allowed to leave out is a product call, not a
 technical one.
+
+**And the single largest correction came from neither**: it came from taking the app to
+a gym. The stepper was specified in a mockup, reviewed, implemented, and type-checked
+clean; nothing in the static toolchain or the spec could have told anyone it was wrong.
+The distance between "this bundles and matches the design" and "this works while you're
+holding a dumbbell" is the part of the process that still has to be walked in person.

@@ -80,6 +80,17 @@ export const templateExercises = sqliteTable(
   (table) => [index('template_exercises_template_idx').on(table.templateId)],
 );
 
+export const templateExercisesRelations = relations(templateExercises, ({ one }) => ({
+  exercise: one(exercises, {
+    fields: [templateExercises.exerciseId],
+    references: [exercises.id],
+  }),
+  template: one(templates, {
+    fields: [templateExercises.templateId],
+    references: [templates.id],
+  }),
+}));
+
 export const sessionStatuses = ['in_progress', 'complete'] as const;
 export type SessionStatus = (typeof sessionStatuses)[number];
 

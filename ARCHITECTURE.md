@@ -53,26 +53,39 @@ one found. This runs once, when an exercise is added to a session (defaulting th
 silently, no prompt, per "confirm don't input") — never mid-set.
 
 **`templates`** / **`templateExercises`** — structure only (an ordered exercise list),
-never weights/reps/RIR. Not yet wired into any screen (build order step 5); the active
-workout logging screen produces template-less sessions (`templateId = null`, an "empty
-workout") until then.
+never weights/reps/RIR. Starting a workout from one copies that structure into fresh
+`sessionExercises` rows; no number is ever copied, because there is no stored number to
+copy. Everything the logging screen shows is read live from history, which is why
+CLAUDE.md forbids an "update template weights" prompt — Tuesday's PR is automatically
+what Thursday pre-fills, with nothing to go stale. An ad-hoc session has
+`templateId = null` ("empty workout") and so has no structure to diff against at
+finish.
 
 **`sessions`** — id, date, gymId, templateId (nullable), status
 (`in_progress`/`complete`), `currentSessionExerciseId` (nullable FK, see below),
 durationSeconds (nullable until finalized).
 
-**`sessionExercises`** — id, sessionId, exerciseId, position, status
-(`pending`/`skipped`), createdAt. Added in migration `0001` after the original
-`sessions.currentPosition` (a bare int) turned out unable to represent "which exercise
-is current" once exercises can be reordered and skipped — an index into a list means
-something different before and after a reorder. `sessions.currentSessionExerciseId` is
-a durable FK into this table instead. It's also the only place "skipped" versus "not
-yet reached" can live: both are zero-set states that mean different things, and `sets`
-has no `exerciseId` column at all, so it can't represent an exercise with no sets
-logged yet. There's deliberately no "added mid-workout" flag here — CLAUDE.md's
-derive-don't-cache pattern (already used for PR flags, pre-fill, chart points) applies
-just as well once templates exist: diff a session's final `sessionExercises` against
-`templateExercises` at finish time instead of tracking it as separate state.
+**`sessionExercises`** — id, sessionId, exerciseId, position, createdAt,
+equipmentVariantId. This is what makes an exercise exist in a session independently of
+whether anything has been logged for it: `sets` has no `exerciseId` column at all, so
+an exercise with zero sets has nowhere else to live. Rows are created from a template
+at Start, or one at a time by "+ Add exercise" mid-workout, and removed by
+`removeExerciseFromSession` (see State management).
+
+There's deliberately no "added mid-workout" flag — CLAUDE.md's derive-don't-cache
+pattern applies here too: the finish-time template prompt diffs the session's final
+`sessionExercises` against `templateExercises` rather than tracking adds and removes as
+separate state.
+
+**Two vestigial columns** survive from the abandoned single-exercise-stepper design and
+are no longer read by anything: `sessionExercises.status` (`pending`/`skipped`, always
+`pending`) and `sessions.currentSessionExerciseId` (always null). With every exercise
+visible and independently loggable, "skipped" stopped being a state — doing the last
+exercise first is identical to doing the first one first — and there is no "current
+exercise" to point at. They're left in place rather than dropped because a column-drop
+migration buys nothing at this size and `drizzle-kit generate`'s rename prompt makes
+drops the awkward kind of migration to author here (see Migrations). Treat them as
+dead; don't start writing to them again.
 
 **`sets`** — id, sessionId, equipmentVariantId, weight (lb, always), reps, rir,
 position, loggedAt, isWarmupOverride (nullable — null means "use inference"),
@@ -121,10 +134,23 @@ Two non-obvious things worth knowing if you touch the schema again:
 `db/client.ts` opens the database with `openDatabaseAsync` (never the legacy sync API)
 and memoizes the connection for the app's lifetime. `db/DatabaseProvider.tsx` wraps the
 whole app, runs migrations, then runs **bootstrap** (`db/bootstrap.ts` —
-`ensureSettingsRow` + `ensureDefaultGym`, both idempotent) before exposing the ready
-database via `useDatabase()`; every screen can assume a gym and a settings row already
-exist by the time it renders. Everything in between is a loading state; failure is a
-plain error screen.
+`ensureSettingsRow` + `ensureDefaultGym` + `ensureSeedExercises`, all idempotent)
+before exposing the ready database via `useDatabase()`; every screen can assume a gym,
+a settings row, and the exercise library already exist by the time it renders.
+Everything in between is a loading state; failure is a plain error screen.
+
+`ensureSeedExercises` is idempotent **by exercise name**, not by a one-time "have we
+ever seeded?" sentinel. The original version bailed out as soon as any
+`isCustom = false` row existed, which meant an install created before a seed-list
+change was permanently stuck on the old list — the only way to pick up new movements
+was the dev "Reset app data" button, i.e. wiping all training history. Diffing on name
+(case-insensitively, so a hand-created "preacher curl" doesn't end up duplicated) makes
+growing the list reach existing installs on their next launch. It only ever *inserts*:
+a user may have edited a seeded exercise's muscle group or overrides, and re-running on
+every boot must not revert their edits. The insert is chunked inside one transaction,
+since the list is now large enough for a single multi-row `INSERT` to approach SQLite's
+`SQLITE_MAX_VARIABLE_NUMBER` — a limit only a fresh install would hit, i.e. every new
+user and nobody testing an upgrade.
 
 ## Pure-logic layer
 
@@ -149,12 +175,25 @@ each in exactly one named function:
   working set in gym terminology; this has zero effect on progression math either way
   (`selectTopSet` never looks at `isWarmup`), and the override tap is available on
   every set row for a user who wants a lighter back-off set dimmed anyway.
-- `resolveFirstSetPrefill` / `resolveNextSetPrefill` (prefill.ts) — deliberately
-  simpler than replaying last session's entire set sequence positionally: the first
-  set of an exercise this session anchors to last session's top set (weight, reps,
-  *and* RIR); every set after that just carries forward the set logged immediately
-  before it this session. Matches "the stepper always adjusts a pre-filled value"
-  (Weight increments) more directly than a full replay would.
+- `resolvePrefillForRow` (prefill.ts) — position-based, not "always the top set":
+  row N pre-fills from last session's Nth *working* set (warm-ups already excluded by
+  `getLastSessionWorkingSets`), falling back to the most recent set logged this session
+  once last session's list runs out, and to zeros only when there's no history at all.
+  An earlier version anchored every row to last session's top set, which made a session
+  that dropped weight after its top set pre-fill the top-set number onto every
+  subsequent row and left the user doing the drop-off arithmetic by hand.
+- `toPrefillSet` (prefill.ts) — narrows to exactly `{weight, reps, rir}` and never
+  returns the source object. This is load-bearing, not tidiness: a `sets` row is
+  structurally assignable to `PrefillSet`, so TypeScript happily let a full row through
+  as a pre-fill value, and its stale `sessionId` then rode along into `logSet`'s input
+  and filed every confirmed set under the *previous* session. `logSet`'s `NoExtraKeys`
+  guard (`db/queries/sets.ts`) now rejects a wider object at compile time as a second
+  line of defence.
+
+`lib/sessionDuration.ts` holds the duration rule — last set timestamp minus first set
+timestamp, never wall-clock close time, per CLAUDE.md — shared by `finishSession` (which
+stores it) and the Finish confirmation sheet (which previews it), so the number shown
+and the number written can't drift apart. The History list formats through it too.
 
 `lib/exerciseDefaults.ts` centralizes the "per-exercise override falls back to the
 settings default" pattern, used identically for rest seconds, weight increment, and
@@ -186,6 +225,38 @@ stable module-level constant (`activeSessionStore.ts` exports `EMPTY_SETS` for t
 Grep for `?? []`/`?? {}` inside any `useActiveSessionStore`/`useRestTimerStore` call
 before adding a new selector.
 
+**Session lifecycle actions.** `finish` finalises the session (computing and storing
+`durationSeconds` as last-set minus first-set timestamp — never wall-clock close time)
+and resets the store. `cancel` is the opposite exit and deletes the session outright,
+sets and `sessionExercises` included, via `cancelSession`. The two are not
+interchangeable: finishing a workout you didn't actually train writes a permanent,
+near-empty session into History *and* into every downstream comparison that reads it —
+a zero-set session becomes the "previous session" the next real one is measured
+against — so cancel is the only correct way to back out of a mis-tapped Start.
+`cancelSession` refuses to touch a `complete` session; deleting one of those is
+History editing's own confirmed action (`deleteSession`).
+
+`removeExercise` drops one exercise from a live session along with the sets logged
+against it *in that session only*. It matches on every `equipmentVariant` of the
+exercise rather than the row's current `equipmentVariantId`, because a mid-session brand
+change repoints the `sessionExercise` at a new variant while leaving already-logged sets
+on the old one — matching only the current pointer would orphan those sets: invisible in
+the UI but still counted by charts and duration. It also clears every per-variant cache
+entry (`sets`, `lastTopSet`, `lastWorkingSets`) for that variant, but only when no other
+exercise in the session still points at it, so re-adding the exercise starts genuinely
+fresh instead of resurrecting deleted rows. `app/history/[id].tsx` exposes the same
+operation for a completed session, which is the counterpart to History editing's "add an
+exercise to a past session" — and, per CLAUDE.md, does *not* prompt about templates.
+
+**No draft-set state.** The store holds logged sets and nothing else. An earlier version
+kept an array of unconfirmed "draft" sets per variant, one per predicted set, so logging
+was a checkmark per row; the current screen has a single always-pre-filled entry row per
+exercise card whose weight/reps/RIR live in component state. That's fewer taps (the next
+set's numbers are already in the steppers the instant the previous one is logged) and
+removes a second, parallel notion of "a set that exists but isn't real yet" that had to
+be kept consistent with the database — the bug class that produced the stale-`sessionId`
+failure described under Pure-logic above.
+
 A second store, `store/restTimerStore.ts`, tracks the rest timer as an absolute
 `endsAt` epoch timestamp rather than a decrementing counter — display components
 recompute `remaining = max(0, endsAt - Date.now())` on their own interval purely to
@@ -199,90 +270,266 @@ phone-locked, skippable/adjustable without leaving the screen.
 ## Screen structure
 
 `app/` is expo-router file-based routing. `app/_layout.tsx` wraps the whole app in
-`DatabaseProvider`. `app/(tabs)/` holds the four-tab shell (Home / Progress / Exercises
-/ History) — Progress and History are still bare placeholders; Home has minimal
-functional Start/Resume-workout wiring (not the final hero-card design from Visual
-design, which depends on templates existing in step 5) plus a `__DEV__`-only seed-data
-button (`db/dev/seedTestData.ts` — dead-code-eliminated from release builds).
+`DatabaseProvider` and pins a single dark theme (not system-adaptive). `app/(tabs)/`
+holds the four-tab shell — Home / Progress / Exercises / History — styled to
+`notch-ui-mockups.html`'s tab bar (19px glyphs, 10px labels, a 0.5px hairline over
+`surface2`, with the device's bottom inset added to the mockup's padding rather than
+replacing it). Three of the four icons come from Feather; Progress uses
+MaterialCommunityIcons' `chart-line`, since Feather's nearest glyph is an arrow rather
+than a plotted line. Both families ship inside `@expo/vector-icons`.
 
-**Exercises tab** (`app/(tabs)/exercises.tsx`) lists every exercise — grouped by
-muscle group via `SectionList` with no search query, collapsing to a flat search-result
-`FlatList` once one is typed — with a "Custom" pill on user-created rows and a "+ New"
-entry point. Tapping a row pushes `app/exercise/[id].tsx`, a real screen (not a modal,
-matching `app/session/[id].tsx`'s precedent): core fields (name/muscle group/equipment
-type) are editable only for custom exercises, rendered as plain read-only text for the
-seeded ones — CLAUDE.md's seed list is deliberately generic content, and the stated
-escape hatch for wanting something different is creating a custom exercise, not
-mutating the shared seeded taxonomy other progression logic scopes against. The three
+`constants/theme.ts` is the single source for colour, transcribed from the mockup's CSS
+custom properties. Nothing hardcodes a hex value outside it except `#fff` on accent
+fills, where white is the contrast requirement rather than a palette choice.
+
+### Home (`app/(tabs)/index.tsx`)
+
+Templates are the entire screen, per CLAUDE.md — no dashboard, no summary stats, no
+recent-session list. A "Monday / Last lifted 2 days ago" header with the gym pill, then
+one accent hero card, then hairline-divided plain rows.
+
+The hero is whichever template is longest-since-performed (`sortByMostOverdue`,
+never-performed sorting first as the most overdue of all), showing its first three
+exercises with last session's top set beside each. This is ordering by recency, not
+recommending a program. It has two other states: an in-progress session turns it into
+"Resume workout", and no templates at all turns it into "Create your first template"
+with the same prominence — CLAUDE.md's "Empty states" requires guidance without ever
+seeding fake content.
+
+Remaining templates are rows carrying a per-template colour dot
+(`lib/templateColor.ts`), the green improvement count from the last session
+(`getSessionImprovementCount`), and a relative date. A count of zero renders nothing at
+all — no red arrow, no "0" — because users train near failure by design and flat
+sessions must not read as failure.
+
+Auto-close (3 hours of inactivity, measured from the last logged set) is swept from
+this screen's focus effect.
+
+### Active workout (`app/session/[id].tsx`)
+
+**One scrollable screen showing every exercise in the session at once**, each as its own
+card. This supersedes an earlier single-exercise stepper — one exercise on screen, "3 of
+6", a forced Next arrow — that was built, used at the gym, and rejected: it locked the
+user into one exercise and made already-logged sets uneditable. `notch-ui-mockups.png`'s
+middle panel still *shows* that stepper, and the mockup file's own header note defers to
+CLAUDE.md on component behaviour, so the mockup is followed for visual language and
+CLAUDE.md for structure. Concretely: the mockup's accent-tinted "Last time" block,
+numbered set rows with greyed warm-ups, bordered Weight/Reps steppers, the 0/1/2/3/4+
+RIR pill row, and the full-width "Log set" button all appear verbatim — they just repeat
+per card down one scroll instead of belonging to one focused exercise.
+
+A persistent header leads with the **elapsed-time clock, centred and large** — the one
+number glanced at from arm's length between sets, so it outranks the screen title for
+that space. Above it sit the back chevron, the template name at subtitle weight, and
+"X of Y" for a template-backed session: a display-only count of how many exercises have
+at least one set logged, explicitly *not* the old stepper counter (nothing is gated on
+it, there's no forced order, and an ad-hoc session shows none). Below it, **Cancel and
+Finish sit side by side** as equally visible, equally labelled buttons. Cancel used to
+live behind a three-dot overflow menu, which hid a destructive action behind an
+unlabelled glyph and made the only exit from a mis-tapped Start something the user had
+to go hunting for.
+
+`components/session/ExerciseCard.tsx` is one exercise's section: title with a remove
+control, the brand row (→ `EquipmentBrandPicker` → `setExerciseBrand`), the "Last time ·
+Aug 31 / 225 × 7 @ 1 RIR" block, the logged-set list, and the entry controls. Entry is a
+single always-pre-filled row resolved per row index from last session's working sets, so
+"Log set" is one tap when the pre-filled numbers are already right and a stepper tap or
+two when they aren't. There is no "+ Add set" control because there's nothing for it to
+do — the entry row *is* the next set.
+
+`components/session/SetTableRow.tsx` renders a logged set with no inline controls, as in
+the mockup: tap opens `EditSetModal` (where both correcting and deleting the set live),
+long-press toggles the warm-up-inference override. Editing goes through a modal rather
+than in place because an inline editor put the keyboard over the field whenever the card
+sat near the bottom of a long scroll. Deleting lives behind the modal rather than as a
+per-row button or a swipe because the row is one tap target under a thumb, and because a
+swipe built on `react-native-gesture-handler`'s `Swipeable` previously caused this whole
+screen to fail to render (Reanimated 4 incompatibility). **Reordering currently has no
+UI at all** — see the limitations section.
+
+`useKeepAwake()` holds the screen on for the session; `useRestTimerNotifications()` is
+mounted once here.
+
+### Finish, cancel, and the template prompt
+
+**Both end-of-workout actions confirm**, through a real sheet
+(`components/shared/ConfirmModal.tsx`) rather than a native Alert. Finish used to commit
+on the tap, which on a one-handed sweaty screen meant a mis-tap permanently ended the
+workout — there is no un-finish, since finalising stores a duration and turns the
+session into a completed record that later sessions get compared against. The confirm
+button sits at the bottom of the sheet, below the body, so reaching it means having read
+past what the sheet is asking about.
+
+`components/session/FinishWorkoutModal.tsx` does two jobs in one screen, because
+they're one decision from the user's side. It opens with a session summary (exercise
+count, set count, duration) and — when the exercise list differs from the template it
+started from — an **itemised list of what changed**, each row marked added or removed,
+with a single checkbox: "Save these changes to Push day." A hint line underneath states
+the consequence either way, so the choice isn't inferred from a checkbox state.
+
+This replaced a native Alert offering "Just this once" / "Save to template" as opaque
+buttons with no way to show *which* exercises it meant. Folding the question into the
+Finish confirmation also avoids two dialogs for one action.
+
+The toggle defaults **off** and resets every time the sheet opens. A template is reused
+every week, so silently absorbing one day's improvisation into it is the more expensive
+mistake. Accepting rebuilds the list in the *template's* order — template entries still
+present, then the additions appended — precisely so saying yes to an add or a remove
+can't reorder the template as a side effect. Reordering never prompts, and weights never
+prompt at all: there are none stored to prompt about.
+
+Finishing with zero sets logged is allowed but called out in the sheet, since it writes
+a real, permanent, empty session into History that later sessions get compared against;
+the sheet points at Cancel as the correct exit in that case.
+
+Cancel is the destructive exit, confirmed, naming the number of sets about to be deleted
+— see State management for why it isn't equivalent to finishing an untrained session.
+
+The duration shown in the Finish sheet and the duration actually stored come from the
+same function (`lib/sessionDuration.ts`), so the preview can't tell the user "52 min"
+and then write something else. The History list formats through it too.
+
+### Progress (`app/(tabs)/progress.tsx`, `app/progress/[id].tsx`)
+
+The tab lands on a searchable list of tracked lifts sorted by most recently trained.
+`listTrackedVariants` excludes any variant with fewer than two logged sessions — nothing
+to plot yet, so nothing to show yet.
+
+The detail view is scoped to one `equipmentVariant` and opens with pills for the sibling
+variants of the same exercise. Those are **never merged**: a Hammer Strength line and a
+Technogym line stay separate, which is the entire differentiator. Then the current best
+top set with its change since the first session, the chart, and a recent-sessions list.
+
+`components/progress/TopSetChart.tsx` draws the chart from the mockup's SVG geometry
+verbatim — a 300×132 viewBox, axis hairline at y=118, series between y=26 and y=104,
+9px date labels on the baseline — so those numbers stay literal at any phone width via
+`aspectRatio` rather than pixel maths. It plots **weight only**; reps are not on the
+line, which is the acknowledged limitation the rep floor addresses, and RIR appears in
+the session list below, never on the chart. Flat runs and single points sit on the plot
+band's centre line rather than dividing by zero — a flat line is the honest picture of
+three sessions at the same weight. There's no time-range control (not in v1).
+
+`react-native-svg` is the one charting dependency, chosen over `victory-native` /
+`react-native-gifted-charts` because it ships inside the Expo Go runtime: no development
+build required, and no gesture/animation stack dragged in for a static eight-point line.
+It replaced a plain-`View` bar visualisation that stood in while there was no chart
+dependency at all.
+
+### History (`app/(tabs)/history.tsx`, `app/history/[id].tsx`)
+
+The tab lists every completed session with date, gym, exercise count, stored duration,
+and improvement count. The detail screen makes a past session **fully editable**, which
+CLAUDE.md treats as a normal case rather than an edge case: add an exercise and its sets,
+edit or delete individual sets, remove an exercise, correct the gym or date, delete the
+whole session. Every derived value — top set, green arrow — is recomputed through the same
+shared functions the live screen uses, so an edit here correctly changes the arrow on this
+session and on whichever session it's compared against. Duration is the one thing that is
+*not* recomputed: it's frozen at finalisation, so adding abs work at 9pm can't turn a
+52-minute workout into a five-hour one.
+
+### Exercises (`app/(tabs)/exercises.tsx`, `app/exercise/[id].tsx`)
+
+Browsable first, searchable second: with no query typed, a `SectionList` groups the full
+library by muscle group (`lib/groupExercises.ts`), collapsing to a flat search-result
+`FlatList` once text is entered. An empty query showing "No exercises found" was a real
+bug, not an empty state. The same grouped component backs the mid-workout add-exercise
+sheet (`components/session/AddExerciseModal.tsx`), which puts recently-used exercises in
+a "Recent" section first and "+ Create new exercise" at the bottom.
+
+`db/seedExercises.ts` ships ~265 generic-named movements across
+barbell/dumbbell/machine/cable/bodyweight, generated 1:1 from `notch-seed-exercises.csv`
+(regenerate from the CSV; don't hand-edit the two out of sync). Cable is the largest
+block at ~70 entries — deliberately, since a single cable stack is the most
+variation-dense piece of equipment in a gym and the generic-name rule means each grip,
+height, and body position has to be its own entry rather than a modifier on one
+"cable curl". Names stay generic —
+"Chest press", never "Hammer Strength chest press" — because brand is a separate
+attribute resolved per gym. `constants/muscleGroups.ts` is the canonical taxonomy the CSV
+and the custom-exercise form both draw from, so a user-created exercise groups into an
+existing section instead of splintering off into a one-item "legs" of its own.
+
+The detail screen edits core fields only for custom exercises and renders them read-only
+for seeded ones — the escape hatch for wanting something different is creating a custom
+exercise, not mutating the shared taxonomy progression scopes against. All three
 per-exercise overrides (rest seconds, weight increment, rep floor) are editable
-regardless of `isCustom` — that's exactly "per-exercise override for anything unusual,"
-CLAUDE.md's own words, with no seeded/custom carve-out — each shown via
-`components/exercises/ExerciseOverrideRow.tsx` with its effective value, a
-default/custom caption, and a reset-to-`null` link. `components/exercises/
-ExerciseForm.tsx` (relocated and generalized from what was originally a
-session-only `CreateExerciseForm`) is shared by exercise creation here, the logging
-screen's add-exercise sheet, and this detail screen's edit mode — one form, three
-callers, driven by an optional `initialValues` prop and a `submitLabel` override
-rather than three near-duplicate components.
+regardless, via `components/exercises/ExerciseOverrideRow.tsx`; that's exactly
+CLAUDE.md's "per-exercise override for anything unusual", with no seeded/custom carve-out.
+`components/exercises/ExerciseForm.tsx` is shared by all three creation/edit callers.
 
-**Exercise seed list**: `db/seedExercises.ts` holds 60 generic-named exercises
-(barbell/dumbbell/machine/cable/bodyweight), inserted once via `ensureSeedExercises`
-in `db/bootstrap.ts` (same idempotent check-then-insert pattern as the default gym and
-settings row, sentinel is "does any `isCustom = false` row exist") — this runs for
-every real install, unlike the `__DEV__`-only fake-history fixture, which now looks up
-"Chest press"/"Back squat" from the real seed list instead of inserting its own
-(their names would otherwise collide).
+### Numeric input
 
-The active workout screen lives at `app/session/[id].tsx`, structured as a
-**single-focused-exercise view** — one exercise's full logging UI on screen at a time,
-with a "N of M" position indicator and a "Next" row to advance — per
-`notch-ui-mockups.html`'s reference layout, rather than a scrollable stack of every
-exercise's card at once. Skip, reorder, jump-to-exercise, and add-exercise are
-consolidated into one sheet (`components/session/ExercisesSheet.tsx`) reachable from
-the header, since the mockup's minimal per-exercise chrome has no room for inline
-controls on every card. `components/session/ActiveExercisePanel.tsx` is the current
-exercise's full view (last-time reference, logged-sets list via `SetRow`, entry
-controls via `NumberStepper`/`RirSelector`); it resolves the exercise's per-exercise
-overrides and pre-fill on mount/exercise-change, and otherwise reads/writes only
-through the store above.
+`components/shared/NumericField.tsx` is the one component for every weight, rep, RIR, and
+(later) rest or goal number. Entering edit mode always starts from an empty draft rather
+than pre-seeding the current value, which is what fixes CLAUDE.md's stale-zero bug (typing
+"5" into a field showing "0" yielding "05") once, at the component level, instead of
+per-screen on every new numeric field. `onChange` fires on every valid keystroke, not on
+blur: `EditSetModal`'s Save reads parent draft state the instant it's pressed, and a
+blur-only commit raced the field's blur against the button's press — a race `Pressable`
+routinely wins on iOS, silently dropping a just-typed value.
 
-The screen only ever produces template-less "empty workout" sessions
-(`templateId = null`), since templates don't exist until step 5. `session_exercises`
-rows never get a `status` beyond `pending`/`skipped` — there's no "done" status; "am I
-on this exercise" is entirely determined by `sessions.currentSessionExerciseId`.
-Each row also carries `equipmentVariantId`: resolved once — to whatever brand was last
-used for that exercise at that gym, or none — when the exercise is added, and persisted
-so a reload doesn't need to re-resolve it (an earlier version silently re-resolved to
-"no brand" on every reload; this is why the column exists rather than deriving it).
-Changing brand mid-session (`ActiveExercisePanel`'s equipment row → `EquipmentBrandPicker`
-→ `activeSessionStore.setExerciseBrand`) just repoints this pointer to a different
-variant — already-logged sets keep referencing the variant they were actually logged
-against, and the newly-pointed variant naturally starts its own fresh warm-up/top-set
-history, which is correct: it's genuinely a different machine.
+### Gym switcher
 
-**Gym switcher**: a pill in Home's header (`components/gyms/GymSwitcherModal.tsx`),
-defaulting to `getLastUsedGym` — single-gym users effectively never see it do anything,
-matching CLAUDE.md's "single-gym users read it as a label." Picking a different gym
-only changes local Home-screen state (which gym the *next* new session will use); it's
-not a separately persisted "current gym" concept, consistent with "gym defaults to the
-last one used" being derived, not stored.
+A pill in Home's header (`components/gyms/GymSwitcherModal.tsx`), defaulting to
+`getLastUsedGym` — single-gym users read it as a label, per CLAUDE.md. Picking a different
+gym only changes which gym the *next* new session uses; it is not a separately persisted
+"current gym", consistent with "gym defaults to the last one used" being derived.
 
 ## Known limitations / not yet built
 
-Per CLAUDE.md's build order: templates (and their pre-fill wiring), progression
-charts, and history browsing are all not built yet. Exercise deletion is deliberately
-absent — CLAUDE.md never calls for it, and deleting an exercise with existing
-sets/variants raises history-integrity questions out of scope for now. Gym
-renaming/deletion is similarly absent — CLAUDE.md doesn't call for it, and the same
-integrity questions apply. Cross-gym reference display (a travel session showing
-greyed-out home-gym numbers, per CLAUDE.md's Multi-gym section) isn't built — first
-sessions at a new gym currently show no pre-fill at all, which is honest but not yet
-the specified UX. `victory-native` / `react-native-gifted-charts` (named in CLAUDE.md's
-Stack section for progression charts) isn't installed, since nothing needs it until
-step 7. Auto-close (CLAUDE.md: 3 hours of inactivity) is swept on Home's
-focus effect rather than a background `AppState` listener — correct for the case that
-matters (Home always reflects accurate resumable-session state before the user acts on
-it) but a session backgrounded for 3+ hours won't flip to `complete` until the user
-next visits Home, not the instant the threshold passes. The kg unit-conversion path in
-`lib/units.ts` is implemented but functionally unverified, since no Settings screen
-exists yet to actually switch `unitPreference` away from its `lb` default.
+**Deferred by CLAUDE.md, deliberately.** Goals (v2) — the `goals` table exists and is
+unused. Bodyweight and assisted movements (v2) — `sets.addedWeight` /
+`sets.assistanceWeight` exist from v1 precisely so retrofitting them later isn't painful.
+Drop sets, supersets, and myo-reps are explicitly out of scope; log them as ordinary sets.
+JSON export is specified for v1 and isn't built yet — it's the only thing standing between
+a tester reinstalling and losing everything, so it's the next thing worth building.
+
+**The rep floor is implemented but defaults to 1**, which reproduces v1 behaviour exactly
+(heaviest set wins, no filter). It's a read-time filter everywhere — `selectTopSet` takes
+it as a parameter — so raising the default later needs no migration and no rework. There
+is no Settings screen yet to change it, or to change the unit preference, which is why the
+kg path in `lib/units.ts` is implemented but functionally unverified.
+
+**Cross-gym reference display isn't built.** A first session at a new gym currently shows
+no pre-fill at all rather than the specified greyed-out home-gym numbers. Honest, but not
+yet the specified UX. There is deliberately no calibration math (CLAUDE.md: real data
+should inform any conversion logic before it's written), and travel sessions are not yet
+drawn as a separate marked series.
+
+**Deletion gaps.** Exercises and gyms can't be deleted; CLAUDE.md never calls for either,
+and both raise history-integrity questions — a deleted exercise's `equipmentVariants` are
+what every past set points at.
+
+**Reordering exercises mid-session has no UI.** CLAUDE.md requires reorder to be
+available mid-session, so this is a known, temporary gap rather than a decision. The
+up/down-arrow sheet that provided it was removed at the requester's direction in favour
+of waiting for real **drag-to-reorder**, which is the next piece of work here, together
+with **swipe-to-delete on a set** (currently behind `EditSetModal`). Both need a gesture
+stack, and that's the open risk: a previous attempt on
+`react-native-gesture-handler` + `react-native-reanimated` +
+`react-native-draggable-flatlist` broke the active workout screen outright (Reanimated 4
+incompatibility) and had to be reverted. Nothing on this screen depends on a gesture
+library today, and reintroducing one should be verified on a device before anything is
+built on top of it. `activeSessionStore.reorderExercises` and
+`db/queries/sessionExercises.ts`'s `reorderSessionExercises` are retained, unused, for
+exactly that work — they already take the fully reordered id list a drag interaction
+produces.
+
+**Two vestigial schema columns** (`sessionExercises.status`,
+`sessions.currentSessionExerciseId`) are left over from the abandoned stepper design and
+are no longer read. See the Data model section.
+
+**The active workout scroll is a plain `ScrollView`.** CLAUDE.md flags a long list of
+exercise cards, each containing a table, as a real virtualized-list candidate
+(`FlatList`/`FlashList`) and says to decide before performance becomes visible rather than
+after. It hasn't been measured on a device yet, so this is a known open question, not a
+settled choice.
+
+**Auto-close is swept on Home's focus effect**, not by a background `AppState` listener.
+That's correct for the case that matters — Home always reflects accurate
+resumable-session state before the user acts on it — but a session backgrounded past the
+3-hour threshold won't flip to `complete` until the user next visits Home.
+
+**Nothing here has run on a physical device.** CLAUDE.md's Gotchas are explicit that
+simulator scrolling and keyboard behaviour differ from the phone in ways that matter for
+this app, and that the logging screen needs one-handed thumb testing. Every layout
+decision above is reasoned from the mockups, not observed in a gym.

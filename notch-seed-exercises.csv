@@ -1,0 +1,266 @@
+name,muscle_group,equipment_type
+Back squat,Quads,barbell
+Front squat,Quads,barbell
+Box squat,Quads,barbell
+Pause squat,Quads,barbell
+Safety bar squat,Quads,barbell
+Barbell split squat,Quads,barbell
+Barbell lunge,Quads,barbell
+Barbell reverse lunge,Quads,barbell
+Barbell step-up,Quads,barbell
+Trap bar deadlift,Quads,barbell
+Bench press,Chest,barbell
+Incline bench press,Chest,barbell
+Decline bench press,Chest,barbell
+Floor press,Chest,barbell
+Close-grip bench press,Triceps,barbell
+Skull crusher,Triceps,barbell
+Deadlift,Back,barbell
+Deficit deadlift,Back,barbell
+Rack pull,Back,barbell
+Romanian deadlift,Hamstrings,barbell
+Stiff-leg deadlift,Hamstrings,barbell
+Good morning,Hamstrings,barbell
+Sumo deadlift,Glutes,barbell
+Hip thrust,Glutes,barbell
+Overhead press,Shoulders,barbell
+Seated overhead press,Shoulders,barbell
+Push press,Shoulders,barbell
+Landmine press,Shoulders,barbell
+Upright row,Shoulders,barbell
+Barbell row,Back,barbell
+Pendlay row,Back,barbell
+T-bar row,Back,barbell
+Landmine row,Back,barbell
+Power clean,Back,barbell
+Hang clean,Back,barbell
+Barbell curl,Biceps,barbell
+EZ-bar curl,Biceps,barbell
+Preacher curl,Biceps,barbell
+Reverse curl,Biceps,barbell
+Barbell shrug,Traps,barbell
+Barbell calf raise,Calves,barbell
+Barbell wrist curl,Forearms,barbell
+Barbell reverse wrist curl,Forearms,barbell
+Dumbbell bench press,Chest,dumbbell
+Incline dumbbell press,Chest,dumbbell
+Decline dumbbell press,Chest,dumbbell
+Dumbbell floor press,Chest,dumbbell
+Neutral-grip dumbbell press,Chest,dumbbell
+Dumbbell squeeze press,Chest,dumbbell
+Dumbbell fly,Chest,dumbbell
+Incline dumbbell fly,Chest,dumbbell
+Dumbbell shoulder press,Shoulders,dumbbell
+Seated dumbbell press,Shoulders,dumbbell
+Arnold press,Shoulders,dumbbell
+Lateral raise,Shoulders,dumbbell
+Leaning lateral raise,Shoulders,dumbbell
+Front raise,Shoulders,dumbbell
+Rear delt fly,Shoulders,dumbbell
+Dumbbell upright row,Shoulders,dumbbell
+Dumbbell row,Back,dumbbell
+Single-arm dumbbell row,Back,dumbbell
+Chest-supported dumbbell row,Back,dumbbell
+Renegade row,Back,dumbbell
+Dumbbell pullover,Back,dumbbell
+Dumbbell curl,Biceps,dumbbell
+Incline dumbbell curl,Biceps,dumbbell
+Dumbbell preacher curl,Biceps,dumbbell
+Spider curl,Biceps,dumbbell
+Hammer curl,Biceps,dumbbell
+Cross-body hammer curl,Biceps,dumbbell
+Concentration curl,Biceps,dumbbell
+Zottman curl,Biceps,dumbbell
+Dumbbell reverse curl,Biceps,dumbbell
+Tricep kickback,Triceps,dumbbell
+Dumbbell overhead extension,Triceps,dumbbell
+Dumbbell skull crusher,Triceps,dumbbell
+Close-grip dumbbell press,Triceps,dumbbell
+Goblet squat,Quads,dumbbell
+Dumbbell front squat,Quads,dumbbell
+Dumbbell lunge,Quads,dumbbell
+Dumbbell reverse lunge,Quads,dumbbell
+Dumbbell walking lunge,Quads,dumbbell
+Dumbbell lateral lunge,Quads,dumbbell
+Dumbbell Bulgarian split squat,Quads,dumbbell
+Dumbbell step-up,Quads,dumbbell
+Dumbbell Romanian deadlift,Hamstrings,dumbbell
+Dumbbell deadlift,Hamstrings,dumbbell
+Dumbbell hip thrust,Glutes,dumbbell
+Kettlebell swing,Glutes,dumbbell
+Dumbbell shrug,Traps,dumbbell
+Dumbbell calf raise,Calves,dumbbell
+Dumbbell side bend,Abs,dumbbell
+Dumbbell wrist curl,Forearms,dumbbell
+Dumbbell reverse wrist curl,Forearms,dumbbell
+Farmer's carry,Forearms,dumbbell
+Chest press,Chest,machine
+Incline chest press,Chest,machine
+Decline chest press,Chest,machine
+Pec deck,Chest,machine
+Smith machine bench press,Chest,machine
+Smith machine incline press,Chest,machine
+Shoulder press,Shoulders,machine
+Smith machine shoulder press,Shoulders,machine
+Lateral raise machine,Shoulders,machine
+Reverse pec deck,Shoulders,machine
+Seated row,Back,machine
+High row,Back,machine
+Low row,Back,machine
+Chest-supported row,Back,machine
+Iso-lateral row,Back,machine
+Smith machine row,Back,machine
+Lat pulldown machine,Back,machine
+Pullover machine,Back,machine
+Back extension machine,Back,machine
+Assisted pull-up,Back,machine
+Assisted dip,Triceps,machine
+Dip machine,Triceps,machine
+Tricep extension machine,Triceps,machine
+Bicep curl machine,Biceps,machine
+Preacher curl machine,Biceps,machine
+Leg press,Quads,machine
+Hack squat,Quads,machine
+Pendulum squat,Quads,machine
+Belt squat,Quads,machine
+Smith machine squat,Quads,machine
+Leg extension,Quads,machine
+Seated leg curl,Hamstrings,machine
+Lying leg curl,Hamstrings,machine
+Standing leg curl,Hamstrings,machine
+Hip thrust machine,Glutes,machine
+Hip abductor,Glutes,machine
+Hip adductor,Glutes,machine
+Glute kickback machine,Glutes,machine
+Standing calf raise,Calves,machine
+Seated calf raise,Calves,machine
+Calf press,Calves,machine
+Donkey calf raise,Calves,machine
+Smith machine calf raise,Calves,machine
+Machine shrug,Traps,machine
+Ab crunch machine,Abs,machine
+Torso rotation machine,Abs,machine
+Leg raise machine,Abs,machine
+Cable row,Back,cable
+Single-arm cable row,Back,cable
+Lat pulldown,Back,cable
+Wide-grip lat pulldown,Back,cable
+Close-grip lat pulldown,Back,cable
+Reverse-grip lat pulldown,Back,cable
+Neutral-grip lat pulldown,Back,cable
+Straight-arm pulldown,Back,cable
+Cable pullover,Back,cable
+Cable fly,Chest,cable
+High-to-low cable fly,Chest,cable
+Low-to-high cable fly,Chest,cable
+Cable chest press,Chest,cable
+Tricep pushdown,Triceps,cable
+Rope tricep pushdown,Triceps,cable
+Single-arm tricep pushdown,Triceps,cable
+Reverse-grip tricep pushdown,Triceps,cable
+Overhead cable tricep extension,Triceps,cable
+Cable skull crusher,Triceps,cable
+Cable tricep kickback,Triceps,cable
+Cable curl,Biceps,cable
+Single-arm cable curl,Biceps,cable
+Cable preacher curl,Biceps,cable
+Cable overhead curl,Biceps,cable
+Rope hammer curl,Biceps,cable
+Cable reverse curl,Biceps,cable
+Face pull,Shoulders,cable
+Cable lateral raise,Shoulders,cable
+Cable front raise,Shoulders,cable
+Cable rear delt fly,Shoulders,cable
+Cable rear delt row,Shoulders,cable
+Cable upright row,Shoulders,cable
+Cable shrug,Traps,cable
+Cable crunch,Abs,cable
+Cable woodchopper,Abs,cable
+Cable side bend,Abs,cable
+Pallof press,Abs,cable
+Cable kickback,Glutes,cable
+Cable pull-through,Glutes,cable
+Cable hip abduction,Glutes,cable
+Cable Romanian deadlift,Hamstrings,cable
+Pull-up,Back,bodyweight
+Wide-grip pull-up,Back,bodyweight
+Neutral-grip pull-up,Back,bodyweight
+Chin-up,Back,bodyweight
+Inverted row,Back,bodyweight
+Push-up,Chest,bodyweight
+Wide push-up,Chest,bodyweight
+Incline push-up,Chest,bodyweight
+Decline push-up,Chest,bodyweight
+Dip,Triceps,bodyweight
+Bench dip,Triceps,bodyweight
+Diamond push-up,Triceps,bodyweight
+Pike push-up,Shoulders,bodyweight
+Handstand push-up,Shoulders,bodyweight
+Bodyweight squat,Quads,bodyweight
+Bodyweight lunge,Quads,bodyweight
+Bulgarian split squat,Quads,bodyweight
+Pistol squat,Quads,bodyweight
+Jump squat,Quads,bodyweight
+Box jump,Quads,bodyweight
+Step-up,Quads,bodyweight
+Nordic curl,Hamstrings,bodyweight
+Hyperextension,Hamstrings,bodyweight
+Glute bridge,Glutes,bodyweight
+Single-leg glute bridge,Glutes,bodyweight
+Reverse hyperextension,Glutes,bodyweight
+Calf raise,Calves,bodyweight
+Single-leg calf raise,Calves,bodyweight
+Plank,Abs,bodyweight
+Side plank,Abs,bodyweight
+Hollow hold,Abs,bodyweight
+Dead bug,Abs,bodyweight
+Crunch,Abs,bodyweight
+Reverse crunch,Abs,bodyweight
+Bicycle crunch,Abs,bodyweight
+Sit-up,Abs,bodyweight
+V-up,Abs,bodyweight
+Hanging leg raise,Abs,bodyweight
+Toes-to-bar,Abs,bodyweight
+Russian twist,Abs,bodyweight
+Ab wheel rollout,Abs,bodyweight
+Mountain climber,Abs,bodyweight
+Cable crossover,Chest,cable
+Single-arm cable fly,Chest,cable
+Incline cable fly,Chest,cable
+Cable incline press,Chest,cable
+Wide-grip cable row,Back,cable
+Close-grip cable row,Back,cable
+Neutral-grip cable row,Back,cable
+Rope cable row,Back,cable
+Cable high row,Back,cable
+Single-arm lat pulldown,Back,cable
+Kneeling lat pulldown,Back,cable
+Straight-bar tricep pushdown,Triceps,cable
+V-bar tricep pushdown,Triceps,cable
+Cross-body cable extension,Triceps,cable
+Single-arm overhead cable extension,Triceps,cable
+Bayesian cable curl,Biceps,cable
+Cable drag curl,Biceps,cable
+High cable curl,Biceps,cable
+Cable spider curl,Biceps,cable
+Cable concentration curl,Biceps,cable
+Cable Y-raise,Shoulders,cable
+Single-arm cable lateral raise,Shoulders,cable
+Behind-the-back cable lateral raise,Shoulders,cable
+Cable external rotation,Shoulders,cable
+Cable high pull,Traps,cable
+Cable oblique crunch,Abs,cable
+Cable reverse crunch,Abs,cable
+Cable hip adduction,Glutes,cable
+Behind-the-back cable wrist curl,Forearms,cable
+Cable wrist curl,Forearms,cable
+Cable reverse wrist curl,Forearms,cable
+Behind-the-back barbell wrist curl,Forearms,barbell
+Reverse-grip bench press,Chest,barbell
+Barbell drag curl,Biceps,barbell
+Barbell pullover,Back,barbell
+Incline dumbbell row,Back,dumbbell
+Dumbbell rear delt row,Back,dumbbell
+Suitcase carry,Forearms,dumbbell
+Glute ham raise,Hamstrings,machine
+Sissy squat,Quads,bodyweight

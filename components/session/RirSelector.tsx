@@ -7,12 +7,13 @@ const OPTIONS = [0, 1, 2, 3, 4] as const; // "4+" stores literal 4 — CLAUDE.md
 interface Props {
   value: number;
   onChange: (rir: number) => void;
+  showLabel?: boolean;
 }
 
-export function RirSelector({ value, onChange }: Props) {
+export function RirSelector({ value, onChange, showLabel = true }: Props) {
   return (
     <View>
-      <Text style={styles.label}>RIR</Text>
+      {showLabel && <Text style={styles.label}>RIR</Text>}
       <View style={styles.row}>
         {OPTIONS.map((option) => {
           const selected = value === option || (option === 4 && value >= 4);
@@ -50,5 +51,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface3,
   },
   targetText: { fontSize: 14, color: colors.textSecondary },
-  targetTextSelected: { fontWeight: '600', color: colors.textPrimary },
+  targetTextSelected: { fontWeight: '500', color: colors.textPrimary },
 });

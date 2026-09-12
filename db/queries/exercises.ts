@@ -58,10 +58,26 @@ export async function listRecentOrFrequentExercises(db: Database, opts: { limit:
   return orderedIds.map((id) => byId.get(id)).filter((e): e is NonNullable<typeof e> => !!e);
 }
 
+// Case-insensitive: "Cable Curl" and "cable curl" are the same exercise as far as
+// progression tracking is concerned, and letting both exist would silently split a
+// lift's history across two rows.
+export async function findExerciseByName(db: Database, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const row = await db.query.exercises.findFirst({
+    where: (e, { sql }) => sql`lower(${e.name}) = lower(${trimmed})`,
+  });
+  return row ?? null;
+}
+
 export async function createExercise(
   db: Database,
   input: { name: string; muscleGroup: string; equipmentType: ExerciseEquipmentType },
 ) {
+  const existing = await findExerciseByName(db, input.name);
+  if (existing) {
+    throw new Error(`"${existing.name}" already exists — pick a different name or use that one.`);
+  }
   const [row] = await db
     .insert(exercises)
     .values({ ...input, isCustom: true })
@@ -81,6 +97,12 @@ export async function updateExercise(
     repFloor: number | null;
   }>,
 ) {
+  if (patch.name !== undefined) {
+    const existing = await findExerciseByName(db, patch.name);
+    if (existing && existing.id !== exerciseId) {
+      throw new Error(`"${existing.name}" already exists — pick a different name or use that one.`);
+    }
+  }
   const [row] = await db
     .update(exercises)
     .set(patch)

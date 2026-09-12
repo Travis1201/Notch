@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
 import { colors } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
@@ -29,6 +31,7 @@ export default function ExerciseDetailScreen() {
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -60,13 +63,13 @@ export default function ExerciseDetailScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.backChevron}>‹</Text>
+          <Feather name="chevron-left" size={18} color={colors.textSecondary} />
         </Pressable>
         <Text style={styles.headerTitle}>{exercise.name}</Text>
-        <View style={{ width: 22 }} />
+        <View style={{ width: 18 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -78,11 +81,17 @@ export default function ExerciseDetailScreen() {
               equipmentType: exercise.equipmentType,
             }}
             submitLabel="Save changes"
+            nameError={nameError}
+            onNameChange={() => setNameError(null)}
             onCancel={() => router.back()}
             onSubmit={async (values) => {
-              const updated = await updateExercise(db, exercise.id, values);
-              setExercise(updated);
-              router.back();
+              try {
+                const updated = await updateExercise(db, exercise.id, values);
+                setExercise(updated);
+                router.back();
+              } catch (e) {
+                setNameError(e instanceof Error ? e.message : String(e));
+              }
             }}
           />
         ) : (
@@ -137,13 +146,13 @@ export default function ExerciseDetailScreen() {
           />
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface1 },
+  container: { flex: 1, backgroundColor: colors.surface2 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -153,8 +162,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  backChevron: { fontSize: 22, color: colors.textSecondary, width: 22 },
-  headerTitle: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+  headerTitle: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
   content: { padding: 16 },
   readOnlyBlock: { marginBottom: 8 },
   readOnlyRow: {

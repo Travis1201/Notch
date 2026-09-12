@@ -1,24 +1,58 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 
 import { colors } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { useActiveSessionStore } from '../../store/activeSessionStore';
 import { useRestTimerNotifications } from '../../hooks/useRestTimerNotifications';
-import { ActiveExercisePanel } from '../../components/session/ActiveExercisePanel';
+import { getTemplate, getTemplateExercises, setTemplateExercises } from '../../db/queries/templates';
+import { computeDurationSeconds } from '../../lib/sessionDuration';
+import { ExerciseCard } from '../../components/session/ExerciseCard';
 import { RestTimerBar } from '../../components/session/RestTimerBar';
-import { ExercisesSheet } from '../../components/session/ExercisesSheet';
 import { AddExerciseModal } from '../../components/session/AddExerciseModal';
+import {
+  FinishWorkoutModal,
+  type TemplateChange,
+} from '../../components/session/FinishWorkoutModal';
+import { ConfirmModal } from '../../components/shared/ConfirmModal';
 
 function formatElapsed(startedAt: Date, now: number): string {
   const totalSeconds = Math.max(0, Math.floor((now - startedAt.getTime()) / 1000));
-  const m = Math.floor(totalSeconds / 60);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
   const s = totalSeconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  // Rolls over to h:mm:ss past an hour instead of counting minutes upward forever —
+  // legitimate long sessions exist (CLAUDE.md sets auto-close at 3 hours precisely
+  // because of them), and "142:07" is not a readable elapsed time.
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// CLAUDE.md "Active workout screen" (SUPERSEDES the old single-exercise-stepper
+// design): one scrollable screen, every exercise visible at once, no forced order.
+//
+// The persistent header leads with the elapsed-time clock, centred and large: it's the
+// one number the user glances at from arm's length mid-set, so it outranks the screen
+// title for that space. Cancel and Finish sit side by side beneath it as equally
+// visible, equally labelled buttons — Cancel used to live behind a three-dot overflow
+// menu, which hid a destructive action behind an unlabelled glyph and made the only
+// way out of a mis-tapped Start something you had to go looking for.
+//
+// BOTH end-of-workout actions confirm, through a real sheet rather than a native
+// Alert (components/shared/ConfirmModal). Finish previously committed on the tap,
+// which on a one-handed sweaty screen meant a mis-tap permanently ended the workout
+// with no way back — finalising stores a duration and turns the session into a
+// completed record later sessions get compared against.
+//
+// Reordering has NO UI at the moment, deliberately. The up/down-arrow sheet it used
+// to live in was removed at the requester's direction, pending a real drag-to-reorder
+// gesture (tracked in ARCHITECTURE.md's limitations, alongside swipe-to-delete on a
+// set). `activeSessionStore.reorderExercises` is retained for that work.
 export default function ActiveSessionScreen() {
   useKeepAwake(); // CLAUDE.md Gotchas: keep screen awake during an active workout
   useRestTimerNotifications();
@@ -29,20 +63,29 @@ export default function ActiveSessionScreen() {
 
   const isHydrated = useActiveSessionStore((s) => s.isHydrated);
   const sessionDate = useActiveSessionStore((s) => s.date);
+  const templateId = useActiveSessionStore((s) => s.templateId);
   const exercises = useActiveSessionStore((s) => s.exercises);
-  const currentSessionExerciseId = useActiveSessionStore((s) => s.currentSessionExerciseId);
+  const setsByVariant = useActiveSessionStore((s) => s.setsByEquipmentVariantId);
   const loadSession = useActiveSessionStore((s) => s.loadSession);
-  const skipExercise = useActiveSessionStore((s) => s.skipExercise);
-  const unskipExercise = useActiveSessionStore((s) => s.unskipExercise);
-  const reorderExercises = useActiveSessionStore((s) => s.reorderExercises);
-  const setCurrentExercise = useActiveSessionStore((s) => s.setCurrentExercise);
   const addExercise = useActiveSessionStore((s) => s.addExercise);
   const finish = useActiveSessionStore((s) => s.finish);
+  const cancel = useActiveSessionStore((s) => s.cancel);
   const reset = useActiveSessionStore((s) => s.reset);
 
-  const [exercisesSheetVisible, setExercisesSheetVisible] = useState(false);
   const [addExerciseModalVisible, setAddExerciseModalVisible] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [templateName, setTemplateName] = useState<string | null>(null);
+
+  const [finishModalVisible, setFinishModalVisible] = useState(false);
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // Resolved once when the Finish sheet opens, not recomputed while it's on screen —
+  // it describes the session as it stood at the moment the user asked to finish.
+  const [templateChanges, setTemplateChanges] = useState<TemplateChange[]>([]);
+  const [nextTemplateExerciseIds, setNextTemplateExerciseIds] = useState<string[]>([]);
+  // Opt-in, and reset every time the sheet opens: nothing edits a reused template
+  // unless the user says so on that specific occasion.
+  const [saveChangesToTemplate, setSaveChangesToTemplate] = useState(false);
 
   useEffect(() => {
     if (id) loadSession(db, id);
@@ -51,28 +94,103 @@ export default function ActiveSessionScreen() {
   }, [id]);
 
   useEffect(() => {
+    if (!templateId) {
+      setTemplateName(null);
+      return;
+    }
+    let cancelled = false;
+    getTemplate(db, templateId).then((t) => {
+      if (!cancelled) setTemplateName(t?.name ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [db, templateId]);
+
+  useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const pendingExercises = useMemo(
-    () => exercises.filter((e) => e.status === 'pending'),
-    [exercises],
-  );
-  const currentExercise = exercises.find((e) => e.id === currentSessionExerciseId) ?? null;
-  const currentIndex = currentExercise ? exercises.indexOf(currentExercise) : -1;
-  const nextPending = pendingExercises.find(
-    (e) => currentExercise === null || e.position > currentExercise.position,
-  );
+  const allSets = useMemo(() => Object.values(setsByVariant).flat(), [setsByVariant]);
 
-  async function handleAdvance() {
-    if (nextPending) await setCurrentExercise(db, nextPending.id);
+  // CLAUDE.md "Templates": once a session has an actual planned exercise count, show
+  // "X of Y logged so far". Explicitly NOT the old "N of M" stepper counter — no
+  // forced order, no gating, purely display. An ad-hoc session has no template and so
+  // no planned count, which is why this is null without one.
+  const loggedExerciseCount = useMemo(
+    () => exercises.filter((e) => (setsByVariant[e.equipmentVariantId] ?? []).length > 0).length,
+    [exercises, setsByVariant],
+  );
+  const progressLabel =
+    templateId && exercises.length > 0 ? `${loggedExerciseCount} of ${exercises.length}` : null;
+
+  // CLAUDE.md "Templates > Structure changes DO prompt": additions and removals, asked
+  // once, on completion. Reordering is excluded on purpose — it's a display preference
+  // mid-session, and the rebuilt list below keeps the TEMPLATE's order precisely so
+  // accepting an add or a remove can't reorder the template as a side effect.
+  async function openFinishModal() {
+    setSaveChangesToTemplate(false);
+
+    if (templateId) {
+      const templateExerciseRows = await getTemplateExercises(db, templateId);
+      const templateExerciseIds = templateExerciseRows.map((r) => r.exerciseId);
+      const templateExerciseIdSet = new Set(templateExerciseIds);
+      const sessionExerciseIdSet = new Set(exercises.map((e) => e.exerciseId));
+
+      const changes: TemplateChange[] = [
+        ...exercises
+          .filter((e) => !templateExerciseIdSet.has(e.exerciseId))
+          .map((e): TemplateChange => ({ kind: 'added', exerciseId: e.exerciseId, name: e.name })),
+        ...templateExerciseRows
+          .filter((r) => !sessionExerciseIdSet.has(r.exerciseId))
+          .map((r): TemplateChange => ({
+            kind: 'removed',
+            exerciseId: r.exerciseId,
+            name: r.exercise.name,
+          })),
+      ];
+
+      setTemplateChanges(changes);
+      setNextTemplateExerciseIds([
+        ...templateExerciseIds.filter((exerciseId) => sessionExerciseIdSet.has(exerciseId)),
+        ...exercises
+          .filter((e) => !templateExerciseIdSet.has(e.exerciseId))
+          .map((e) => e.exerciseId),
+      ]);
+    } else {
+      setTemplateChanges([]);
+      setNextTemplateExerciseIds([]);
+    }
+
+    setFinishModalVisible(true);
   }
 
-  async function handleFinish() {
-    setExercisesSheetVisible(false);
-    await finish(db);
-    router.replace('/(tabs)');
+  async function handleConfirmFinish() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (saveChangesToTemplate && templateId && templateChanges.length > 0) {
+        await setTemplateExercises(db, templateId, nextTemplateExerciseIds);
+      }
+      await finish(db);
+      setFinishModalVisible(false);
+      router.replace('/(tabs)');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleConfirmCancel() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await cancel(db);
+      setCancelModalVisible(false);
+      router.replace('/(tabs)');
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!isHydrated) {
@@ -84,66 +202,48 @@ export default function ActiveSessionScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable style={styles.headerLeft} onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.backChevron}>‹</Text>
-          <Text style={styles.headerTitle}>Workout</Text>
-        </Pressable>
-        <View style={styles.headerRight}>
-          {sessionDate && <Text style={styles.elapsed}>{formatElapsed(sessionDate, now)}</Text>}
-          <Pressable onPress={() => setExercisesSheetVisible(true)} hitSlop={8}>
-            <Text style={styles.headerAction}>Exercises</Text>
+        <View style={styles.headerTopRow}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
+            <Feather name="chevron-left" size={20} color={colors.textSecondary} />
+          </Pressable>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {templateName ?? 'Workout'}
+          </Text>
+          <Text style={styles.progressLabel}>{progressLabel ?? ''}</Text>
+        </View>
+
+        {/* The clock is the header's centrepiece. Tabular figures so the digits don't
+            shift the layout as the seconds tick over. */}
+        <Text style={styles.clock}>{sessionDate ? formatElapsed(sessionDate, now) : '0:00'}</Text>
+
+        <View style={styles.headerActions}>
+          <Pressable style={styles.cancelButton} onPress={() => setCancelModalVisible(true)}>
+            <Text style={styles.cancelButtonLabel}>Cancel</Text>
+          </Pressable>
+          <Pressable style={styles.finishButton} onPress={openFinishModal}>
+            <Text style={styles.finishButtonLabel}>Finish</Text>
           </Pressable>
         </View>
       </View>
 
-      {currentExercise ? (
-        <ActiveExercisePanel
-          key={currentExercise.id}
-          sessionExercise={currentExercise}
-          indexInList={currentIndex + 1}
-          totalCount={exercises.length}
-          hasNext={!!nextPending}
-          onAdvance={handleAdvance}
-        />
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No exercise selected</Text>
-          <Text style={styles.emptyBody}>Add an exercise to get started.</Text>
-          <Pressable style={styles.emptyAddButton} onPress={() => setAddExerciseModalVisible(true)}>
-            <Text style={styles.emptyAddLabel}>+ Add exercise</Text>
-          </Pressable>
-        </View>
-      )}
-
       <RestTimerBar />
 
-      <ExercisesSheet
-        visible={exercisesSheetVisible}
-        onClose={() => setExercisesSheetVisible(false)}
-        exercises={exercises}
-        currentSessionExerciseId={currentSessionExerciseId}
-        onJumpTo={(exerciseId) => {
-          setCurrentExercise(db, exerciseId);
-          setExercisesSheetVisible(false);
-        }}
-        onSkip={(exerciseId) => skipExercise(db, exerciseId)}
-        onUnskip={(exerciseId) => unskipExercise(db, exerciseId)}
-        onMove={(exerciseId, direction) => {
-          const ids = exercises.map((e) => e.id);
-          const idx = ids.indexOf(exerciseId);
-          const swapWith = direction === 'up' ? idx - 1 : idx + 1;
-          if (swapWith < 0 || swapWith >= ids.length) return;
-          [ids[idx], ids[swapWith]] = [ids[swapWith], ids[idx]];
-          reorderExercises(db, ids);
-        }}
-        onAddExercise={() => {
-          setExercisesSheetVisible(false);
-          setAddExerciseModalVisible(true);
-        }}
-        onFinish={handleFinish}
-      />
+      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        {exercises.length === 0 && (
+          <Text style={styles.emptyText}>Add an exercise below to get started.</Text>
+        )}
+
+        {exercises.map((sessionExercise) => (
+          <ExerciseCard key={sessionExercise.id} sessionExercise={sessionExercise} />
+        ))}
+
+        <Pressable style={styles.addExerciseRow} onPress={() => setAddExerciseModalVisible(true)}>
+          <Feather name="plus" size={16} color={colors.textSecondary} />
+          <Text style={styles.addExerciseLabel}>Add exercise</Text>
+        </Pressable>
+      </ScrollView>
 
       <AddExerciseModal
         visible={addExerciseModalVisible}
@@ -153,39 +253,102 @@ export default function ActiveSessionScreen() {
           setAddExerciseModalVisible(false);
         }}
       />
-    </View>
+
+      <FinishWorkoutModal
+        visible={finishModalVisible}
+        templateName={templateName}
+        exerciseCount={exercises.length}
+        setCount={allSets.length}
+        durationSeconds={computeDurationSeconds(allSets)}
+        changes={templateChanges}
+        saveChangesToTemplate={saveChangesToTemplate}
+        onToggleSaveChanges={() => setSaveChangesToTemplate((v) => !v)}
+        onConfirm={handleConfirmFinish}
+        onClose={() => setFinishModalVisible(false)}
+      />
+
+      <ConfirmModal
+        visible={cancelModalVisible}
+        title="Cancel this workout?"
+        message={
+          allSets.length > 0
+            ? `${allSets.length} logged ${allSets.length === 1 ? 'set' : 'sets'} will be deleted and this workout won't appear in History. This can't be undone.`
+            : "This workout will be discarded and won't appear in History."
+        }
+        confirmLabel="Discard workout"
+        confirmTone="destructive"
+        cancelLabel="Keep logging"
+        onConfirm={handleConfirmCancel}
+        onClose={() => setCancelModalVisible(false)}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface1 },
+  container: { flex: 1, backgroundColor: colors.surface2 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backChevron: { fontSize: 22, color: colors.textSecondary, marginTop: -2 },
-  headerTitle: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  elapsed: { fontSize: 13, color: colors.textMuted },
-  headerAction: { fontSize: 13, color: colors.accent, fontWeight: '500' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '600', color: colors.textPrimary },
-  emptyBody: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
-  emptyAddButton: {
-    marginTop: 12,
-    height: 48,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Equal width to progressLabel so the centred title is optically centred regardless
+  // of whether there's a progress count to show.
+  backButton: { width: 52, alignItems: 'flex-start' },
+  headerTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  progressLabel: { width: 52, fontSize: 12, color: colors.textMuted, textAlign: 'right' },
+  clock: {
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  headerActions: { flexDirection: 'row', gap: 10 },
+  cancelButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonLabel: { fontSize: 15, fontWeight: '500', color: colors.textSecondary },
+  finishButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyAddLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  finishButtonLabel: { fontSize: 15, fontWeight: '500', color: '#fff' },
+  list: { flex: 1 },
+  listContent: { padding: 16 },
+  emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: 16 },
+  addExerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: colors.border,
+  },
+  addExerciseLabel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
 });

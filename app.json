@@ -28,6 +28,19 @@
       "expo-router",
       "expo-sqlite",
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d32bb684-e717-466a-834c-9c8b83d96efc"
+      }
+    },
+    "owner": "traviscobb12",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d32bb684-e717-466a-834c-9c8b83d96efc"
+    }
   }
 }

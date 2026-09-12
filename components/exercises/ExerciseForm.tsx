@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { colors } from '../../constants/theme';
 import { exerciseEquipmentTypes, type ExerciseEquipmentType } from '../../db/schema';
+import { MUSCLE_GROUPS } from '../../constants/muscleGroups';
 
 export interface ExerciseFormValues {
   name: string;
@@ -13,13 +14,22 @@ export interface ExerciseFormValues {
 interface Props {
   initialValues?: ExerciseFormValues;
   submitLabel?: string;
+  nameError?: string | null;
   onSubmit: (values: ExerciseFormValues) => void;
   onCancel: () => void;
+  onNameChange?: () => void;
 }
 
 // Shared create/edit form — used by the logging screen's add-exercise sheet, the
 // Exercises tab's create modal, and a custom exercise's detail/edit screen.
-export function ExerciseForm({ initialValues, submitLabel = 'Add exercise', onSubmit, onCancel }: Props) {
+export function ExerciseForm({
+  initialValues,
+  submitLabel = 'Add exercise',
+  nameError,
+  onSubmit,
+  onCancel,
+  onNameChange,
+}: Props) {
   const [name, setName] = useState(initialValues?.name ?? '');
   const [muscleGroup, setMuscleGroup] = useState(initialValues?.muscleGroup ?? '');
   const [equipmentType, setEquipmentType] = useState<ExerciseEquipmentType>(
@@ -28,25 +38,55 @@ export function ExerciseForm({ initialValues, submitLabel = 'Add exercise', onSu
 
   const canSubmit = name.trim().length > 0 && muscleGroup.trim().length > 0;
 
+  // Muscle group suggestions narrow as the user types, but any text can still be
+  // submitted — this nudges toward the canonical taxonomy (CLAUDE.md's seed list
+  // categories) without blocking a genuinely new group. Picking a pill snaps the
+  // field to that exact spelling/casing, so custom exercises group correctly
+  // alongside seeded ones in the Exercises tab instead of splintering into their own
+  // one-item section over a typo or casing mismatch.
+  const trimmedGroup = muscleGroup.trim().toLowerCase();
+  const muscleGroupSuggestions = MUSCLE_GROUPS.filter((g) =>
+    g.toLowerCase().includes(trimmedGroup),
+  );
+
   return (
     <View style={styles.container}>
       <Text style={styles.fieldLabel}>Name</Text>
       <TextInput
         style={styles.input}
         value={name}
-        onChangeText={setName}
+        onChangeText={(next) => {
+          setName(next);
+          onNameChange?.();
+        }}
         placeholder="e.g. Leg press"
         placeholderTextColor={colors.textMuted}
         autoFocus
       />
+      {nameError && <Text style={styles.errorText}>{nameError}</Text>}
       <Text style={styles.fieldLabel}>Muscle group</Text>
       <TextInput
         style={styles.input}
         value={muscleGroup}
         onChangeText={setMuscleGroup}
-        placeholder="e.g. Legs"
+        placeholder="e.g. Chest"
         placeholderTextColor={colors.textMuted}
       />
+      {muscleGroupSuggestions.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
+          {muscleGroupSuggestions.map((group) => (
+            <Pressable
+              key={group}
+              onPress={() => setMuscleGroup(group)}
+              style={[styles.pill, muscleGroup === group && styles.pillSelected]}
+            >
+              <Text style={[styles.pillText, muscleGroup === group && styles.pillTextSelected]}>
+                {group}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
       <Text style={styles.fieldLabel}>Equipment type</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
         {exerciseEquipmentTypes.map((type) => (
@@ -82,6 +122,7 @@ export function ExerciseForm({ initialValues, submitLabel = 'Add exercise', onSu
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: colors.surface1, flex: 1 },
   fieldLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 6, marginTop: 14 },
+  errorText: { fontSize: 12, color: colors.textError, marginTop: 6 },
   input: {
     borderWidth: 0.5,
     borderColor: colors.borderStrong,
@@ -92,7 +133,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     backgroundColor: colors.surface2,
   },
-  pillRow: { flexDirection: 'row' },
+  pillRow: { flexDirection: 'row', marginTop: 8 },
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 6,

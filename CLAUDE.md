@@ -205,6 +205,13 @@ This also handles cases a snapshot would get wrong:
 
 **Never build an "update template weights" prompt.** It's the wrong model.
 
+Once templates exist, a session started from one has an actual planned exercise
+count — show it somewhere (e.g. in the active workout header, or on the session once
+finished). This is **not** the old "N of M" stepper counter (that's gone for good, see
+"Active workout screen") — no forced order, no gating, purely "X of Y logged so far,"
+the same display-only spirit as an untouched exercise's dimming. An empty/ad-hoc
+session has no template and so has no such count to show.
+
 #### Structure changes DO prompt
 
 If the finished session's exercise list differs from the template (added, removed, or
@@ -219,10 +226,22 @@ Weights never prompt. Structure prompts only when it actually changed.
 A real workout deviates from the plan constantly. The app must not fight this.
 
 - **Add exercise** is a persistent row at the bottom of the session's exercise list, not
-  behind a menu. Tapping opens a search sheet with recent and most-frequent exercises
-  listed first; one tap adds it and drops straight into logging with pre-filled numbers.
-  "Create new exercise" sits at the bottom of that same sheet.
-- **Skip** and **reorder** must both be available mid-session.
+  behind a menu. Tapping opens a search sheet; one tap adds it and drops straight into
+  its section with pre-filled numbers. "Create new exercise" sits at the bottom of that
+  same sheet.
+- **The exercise picker must be browsable, not search-only.** Currently, an empty query
+  shows "No exercises found" — that's a bug, not an empty state. With no query typed,
+  show the **full scrollable exercise library by default** (seed list + user-created),
+  reasonably grouped (e.g. by muscle group, or recent/frequent first per the existing
+  pre-fill logic) so the user can scroll and tap without typing anything. The search bar
+  filters that same list live as text is entered; it doesn't replace browsing.
+- **No explicit "Skip."** With every exercise always visible and no forced order,
+  there's nothing left for a skip action to do — doing the last exercise on the list
+  first is identical to doing the first one first, and a session isn't asked about
+  exercises it never touched. An exercise with zero sets logged is just that: display-
+  only, never a gate, never prompted about at Finish (see "State a live session must
+  persist"). **Reorder** — changing the scroll's display order, a pure preference with
+  no functional effect — must still be available mid-session.
 
 ---
 
@@ -255,13 +274,67 @@ Marks a lift whose top set beat the previous session on the same equipment varia
 - Gym selector is a small pill in the header. Single-gym users read it as a label.
 - Tab bar: Home / Progress / Exercises / History.
 
-### Logging screen
-- Last session's numbers sit directly above the entry fields, never behind navigation.
-- Weight and reps use +/- steppers (2.5 lb and 1 rep increments), tap the number for
-  direct entry. Faster one-handed than a keypad.
-- RIR is a row of five tap targets (0,1,2,3,4+), defaulting to last session's value.
-- Warm-up sets render greyed automatically via inference; tap to override.
-- A normal set should be: glance, adjust if needed, tap Log set.
+### Active workout screen (SUPERSEDES earlier single-exercise-stepper design)
+
+**The original spec called for a single-exercise stepper — one exercise on screen at a
+time, "3 of 6," a forced Next arrow. This was built, used at the gym, and rejected. It
+is wrong and must not be reintroduced.** The failure: it locked the user into one
+exercise, made it impossible to jump around, and made already-logged sets uneditable.
+
+**The model is now a single scrollable screen showing every exercise in the session at
+once**, closer to how Strong's active-workout screen works (see reference screenshot).
+Not a clone — the RIR row, warm-up greying, and rest timer are still Notch's own — but
+the core structural change is real and non-negotiable:
+
+- **All exercises in the session are visible in one vertical scroll**, each as its own
+  card/section with a small set table (Set # / Previous / Weight / Reps / RIR / check).
+  No per-exercise "screen." No forced order.
+- **The user can tap into any exercise, any set, in any order.** Nothing is locked to
+  "current exercise." Scrolling up to a previous exercise and logging another set there
+  must work exactly like scrolling down to the next one.
+- **Every logged set remains editable for the life of the session** (and after, per
+  History editing). Tapping a completed set's weight or reps opens it for correction —
+  logged is never the same as locked.
+- Each exercise section has its own **"+ Add set"** control, and its own row for warm-up
+  greying (inference still applies per set, unchanged).
+- **Adding an exercise mid-workout happens at the bottom of this same scroll** — a
+  persistent "+ Add exercise" row, not a separate screen reached only when "finished"
+  with the current one.
+- A persistent header stays visible while scrolling: elapsed time, a Finish button, and
+  the rest-timer control. This is the one piece of Strong's layout worth copying
+  directly — it's what makes the screen usable one-handed at arm's length.
+- "Last time" reference data (weight × reps @ RIR) shows per exercise, near its set
+  table — still surfaced without navigating away, just relocated from "above the single
+  input" to "within that exercise's card."
+- RIR entry per set can be a compact row within the set's line/expansion rather than
+  claiming the whole screen — it needs to fit into a multi-exercise scroll now, so it
+  should be visually lighter than in the original single-exercise design.
+- Do **not** add Strong's superset/chain-link icon. Supersets are explicitly out of
+  scope (see Explicitly deferred) — omit that control entirely rather than build it
+  disabled.
+- Keep weight/reps steppers (+/-) available for quick adjustment, but every numeric
+  field must also support direct tap-to-edit. See "Numeric input" below for the bug this
+  surfaced.
+
+### Numeric input (bug — fix at the component level, not per-screen)
+
+Tapping a weight/reps field currently leaves a stale **"0" in place**, so typing appends
+instead of replacing (typing "5" after an existing "0" yields "05" or similar) — a
+correctness bug, not a style note.
+
+**Fix once, in a shared numeric-input component, and use it everywhere a weight, rep
+count, RIR, or (later) rest duration or goal number is entered** — not fixed separately
+on each screen, since the same bug will otherwise resurface on every new numeric field
+(rest duration, goals, settings).
+
+Required behaviour:
+- Focusing a field whose value is `0` or unset clears it, so the first keystroke starts
+  clean rather than concatenating.
+- Select-all-on-focus is an acceptable alternative to clearing, and is arguably better —
+  it lets a full retype replace an existing non-zero value too (e.g. correcting 185 to
+  135 shouldn't require manually deleting each digit).
+- An empty field on blur should resolve to a sensible default (0, or the last valid
+  value) rather than being left blank in the underlying state.
 
 ### Progress tab
 - Lands on a searchable list of tracked lifts, sorted by most recently trained. Tapping
@@ -295,9 +368,12 @@ in component state, a phone call mid-workout could wipe everything logged so far
 failure mode most likely to make someone abandon the app.
 
 ### State a live session must persist
-- Current position in the exercise list
-- Which exercises were **skipped** vs. **not yet reached** (both have zero sets but mean
-  different things — skipped ones can be offered again at the end)
+- Which exercises are in the session and their order (for display and for the
+  eventual template-diff prompt) — **not** a "current exercise" pointer. There is no
+  forced order to track; every exercise's section is independently loggable at any time.
+- Which exercises have zero sets logged yet, if that distinction is still useful for
+  visual treatment (e.g. dimming an untouched section) — but this is display-only, never
+  a gate on interaction.
 - Exercises added mid-workout (drives the template-update prompt on completion)
 - `status` so the app knows on launch whether to offer Resume
 
@@ -589,11 +665,14 @@ Each step independently verifiable.
 ### Logging UI
 - Weight and rep entry needs large tap targets and `keyboardType="decimal-pad"`, not the
   default keyboard.
-- "What did I do last time" must be visible **on the logging screen itself**, not one
-  navigation away.
+- "What did I do last time" must be visible **within the relevant exercise's section**,
+  not one navigation away.
 - Test one-handed with a thumb. That's how it'll actually be used.
 - Keep the screen awake during an active workout (`expo-keep-awake`) — the screen locking
   between sets is a real annoyance.
+- A long scroll with many exercise cards, each containing a table, is a real virtualized-
+  list candidate (`FlatList`/`FlashList`) rather than a plain `ScrollView` once sessions
+  get long — worth deciding before performance becomes a visible problem, not after.
 
 ### expo-sqlite + Drizzle
 - Use the async API (`openDatabaseAsync`), not the legacy sync one.

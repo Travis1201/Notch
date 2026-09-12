@@ -11,29 +11,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { listExercises, searchExercises, createExercise } from '../../db/queries/exercises';
 import type { Exercise } from '../../db/types';
+import { groupByMuscleGroup } from '../../lib/groupExercises';
 import { ExerciseForm } from '../../components/exercises/ExerciseForm';
-
-interface Section {
-  title: string;
-  data: Exercise[];
-}
-
-function groupByMuscleGroup(exerciseList: Exercise[]): Section[] {
-  const byGroup = new Map<string, Exercise[]>();
-  for (const exercise of exerciseList) {
-    const list = byGroup.get(exercise.muscleGroup);
-    if (list) list.push(exercise);
-    else byGroup.set(exercise.muscleGroup, [exercise]);
-  }
-  return [...byGroup.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([title, data]) => ({ title, data }));
-}
 
 export default function ExercisesScreen() {
   const db = useDatabase();
@@ -44,6 +29,7 @@ export default function ExercisesScreen() {
   const [searchResults, setSearchResults] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -94,9 +80,9 @@ export default function ExercisesScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Exercises</Text>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.screenHeader}>
+        <Text style={styles.screenTitle}>Exercises</Text>
         <Pressable onPress={() => setCreateModalVisible(true)} hitSlop={8}>
           <Text style={styles.newLabel}>+ New</Text>
         </Pressable>
@@ -141,26 +127,53 @@ export default function ExercisesScreen() {
         <View style={styles.createModalContainer}>
           <View style={styles.header}>
             <Text style={styles.title}>New exercise</Text>
-            <Pressable onPress={() => setCreateModalVisible(false)} hitSlop={8}>
+            <Pressable
+              onPress={() => {
+                setCreateModalVisible(false);
+                setCreateError(null);
+              }}
+              hitSlop={8}
+            >
               <Text style={styles.newLabel}>Close</Text>
             </Pressable>
           </View>
           <ExerciseForm
-            onCancel={() => setCreateModalVisible(false)}
-            onSubmit={async (values) => {
-              await createExercise(db, values);
+            nameError={createError}
+            onNameChange={() => setCreateError(null)}
+            onCancel={() => {
               setCreateModalVisible(false);
-              reload();
+              setCreateError(null);
+            }}
+            onSubmit={async (values) => {
+              try {
+                await createExercise(db, values);
+                setCreateModalVisible(false);
+                setCreateError(null);
+                reload();
+              } catch (e) {
+                setCreateError(e instanceof Error ? e.message : String(e));
+              }
             }}
           />
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface1 },
+  container: { flex: 1, backgroundColor: colors.surface2 },
+  screenHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+  },
+  screenTitle: { fontSize: 22, fontWeight: '500', color: colors.textPrimary },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -181,10 +194,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 15,
     color: colors.textPrimary,
-    backgroundColor: colors.surface2,
+    backgroundColor: colors.surface3,
   },
   loading: { marginTop: 24 },
-  sectionHeader: { backgroundColor: colors.surface2, paddingHorizontal: 16, paddingVertical: 6 },
+  sectionHeader: { backgroundColor: colors.surface3, paddingHorizontal: 16, paddingVertical: 6 },
   sectionHeaderLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   row: {
     flexDirection: 'row',
