@@ -48,11 +48,15 @@ export interface PrDelta {
   amount: number; // lb for 'weight' (convert at the display boundary), reps for 'reps'
 }
 
-// Which dimension moved follows the same precedence as `compareSets`: weight dominates.
-// A heavier top set reports its weight gain even if the reps went DOWN — reporting
-// "-1 rep" there would contradict the arrow the same row is showing, and by the app's
-// own ordering rule the lift did improve. Reps are only reported when weight held
-// steady, which is the only case in which reps decided the comparison.
+// EXACTLY ONE dimension is ever reported — never both. Weight dominates, the same
+// precedence `compareSets` uses: if the weight went up, the weight gain is the whole
+// story and reps are not mentioned at all, whether they went up, down, or nowhere. Reps
+// are reported only when weight held steady, which is the only case in which reps
+// decided the comparison.
+//
+// That also disposes of the heavier-but-fewer-reps case without a special branch:
+// reporting "-1 rep" there would contradict the up-arrow on its own row, and by the
+// app's own ordering rule the lift did improve.
 export function describeImprovement(
   current: LoggedSet | null,
   previous: LoggedSet | null,

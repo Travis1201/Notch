@@ -206,6 +206,13 @@ This also handles cases a snapshot would get wrong:
 
 **Never build an "update template weights" prompt.** It's the wrong model.
 
+Once templates exist, a session started from one has an actual planned exercise
+count — show it somewhere (e.g. in the active workout header, or on the session once
+finished). This is **not** the old "N of M" stepper counter (that's gone for good, see
+"Active workout screen") — no forced order, no gating, purely "X of Y logged so far,"
+the same display-only spirit as an untouched exercise's dimming. An empty/ad-hoc
+session has no template and so has no such count to show.
+
 #### Structure changes DO prompt
 
 If the finished session's exercise list differs from the template (added, removed, or
@@ -229,7 +236,13 @@ A real workout deviates from the plan constantly. The app must not fight this.
   reasonably grouped (e.g. by muscle group, or recent/frequent first per the existing
   pre-fill logic) so the user can scroll and tap without typing anything. The search bar
   filters that same list live as text is entered; it doesn't replace browsing.
-- **Skip** and **reorder** must both be available mid-session.
+- **No explicit "Skip."** With every exercise always visible and no forced order,
+  there's nothing left for a skip action to do — doing the last exercise on the list
+  first is identical to doing the first one first, and a session isn't asked about
+  exercises it never touched. An exercise with zero sets logged is just that: display-
+  only, never a gate, never prompted about at Finish (see "State a live session must
+  persist"). **Reorder** — changing the scroll's display order, a pure preference with
+  no functional effect — must still be available mid-session.
 
 ---
 
