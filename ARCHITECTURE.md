@@ -207,11 +207,22 @@ The in-progress session lives in a Zustand store (`store/activeSessionStore.ts`,
 can and does kill backgrounded apps, and a second persistence layer would create a
 competing one for data CLAUDE.md requires to be written per-set, not batched). It
 hydrates once from SQLite on screen mount (`loadSession`) and never rebuilds itself
-from the database on every render. Every mutation is **write-then-reflect**, not
+from the database on every render. Almost every mutation is **write-then-reflect**, not
 optimistic: each action `await`s its SQLite write first, then updates in-memory state
 from the result — local SQLite writes are single-digit milliseconds, so there's no
 perceptible lag, and it sidesteps an entire class of rollback bugs an optimistic-update
-model would introduce. Derived values (top set, "improved," warm-up classification) are
+model would introduce.
+
+`reorderExercises` is the **one exception**, and the reasoning is worth keeping because
+it's the test any future exception has to pass. A drag-and-drop has to land on the frame
+the finger lifts; awaiting the write first left a window in which the dropped card was
+offset to its new position while the list still rendered it in its old slot, so it was
+drawn underneath an opaque neighbour and only reappeared when a later interaction forced
+a re-render. It is safe to invert here specifically because exercise order is
+display-only — nothing derives from it (not the top set, not the green arrow, not
+pre-fill, not duration), so an order briefly ahead of the database cannot produce a wrong
+number anywhere. A failed write rolls the in-memory order back, and only if nothing else
+has changed the list in the meantime. Derived values (top set, "improved," warm-up classification) are
 never stored in the Zustand state either — they're computed at render time from
 `setsByEquipmentVariantId` via the pure-logic layer above, keeping "derive, don't
 cache" true in memory as well as in SQLite.
@@ -407,13 +418,22 @@ moved more than a couple of positions. The scrolled distance is added to the car
 translation, or the card would slide out from under a stationary thumb by exactly the
 amount scrolled.
 
-On release the new order is committed **immediately**, and the settle spring is usually
-cut short by the transform reset that follows — so a drop reads as a snap rather than a
-glide. That's the deliberate trade: committing at once keeps the captured order and
-what's on screen describing the same list at every instant, which is what makes starting
-a second drag right after a first one safe. Deferring the commit to the animation's
-completion callback would animate better and leave a ~300ms window in which a new drag
-reads a stale order.
+On release the new order is committed and **every transform is zeroed in the same
+tick**. `reorderExercises` applies to memory synchronously (see State management), so the
+next render already draws each card in its dropped position needing no offset — there is
+never a frame in which a card is drawn at its new index while still carrying its old
+one. An earlier version instead animated the card into the gap and held the transform
+until the reordered data arrived; because the reorder awaited a database write, that gap
+lasted long enough that the dropped card — offset from its slot and no longer raised —
+was drawn *behind* the neighbour it had landed on, and stayed invisible until some later
+interaction forced a re-render.
+
+The cost is that a successful drop snaps rather than glides. That's the right trade: it
+keeps what's on screen and what the data says in agreement at every instant, which is
+also what makes starting a second drag immediately safe. A card dropped back where it
+started has nothing to commit, so it does glide home — and keeps its raised z-index until
+the spring finishes, since a card still offset from its slot without it would slide back
+underneath its neighbours on the way.
 
 `useKeepAwake()` holds the screen on for the session; `useRestTimerNotifications()` is
 mounted once here.
@@ -567,16 +587,20 @@ drawn as a separate marked series.
 and both raise history-integrity questions — a deleted exercise's `equipmentVariants` are
 what every past set points at.
 
-**The two gestures have never run on a phone.** Drag-to-reorder and swipe-to-delete
-are the highest-risk code in the app for exactly that reason: gesture feel is the one
-thing a type-check and a bundle build say nothing about, and this is the third attempt
-at them. They're implemented without any gesture library precisely so a failure is
-survivable (see Gestures above), `constants/features.ts` can switch either off at
-runtime, and the commit before them is tagged `pre-gestures`. Specific things only a
-device can answer: whether the grip handle is big enough to hit one-handed, whether
-auto-scroll's speed and edge threshold feel right, whether JS-thread gesture handling
-is smooth enough with a long session on screen, and whether the swipe's
-horizontal-intent threshold rejects enough vertical drift to keep the list scrollable.
+**The two gestures have had one device pass, not a gym pass.** Drag-to-reorder and
+swipe-to-delete were tried on hardware and work; that round fixed the dropped card
+disappearing (see the drag section) and sized the grip handle up from a 16px glyph to
+21px. They remain the highest-risk code in the app — gesture feel is the one thing a
+type-check and a bundle build say nothing about, and this is the third attempt at them —
+so `constants/features.ts` keeps a runtime kill switch for each, and the commit before
+them is tagged `pre-gestures`.
+
+Still unanswered, because they need a long session and a real workout rather than a
+quick try: whether **auto-scroll**'s edge threshold (96px) and speed (14px/tick) feel
+right when dragging a card across several screens, whether JS-thread gesture handling
+stays smooth with a long session on screen, and whether the swipe's horizontal-intent
+threshold rejects enough vertical drift to keep the list comfortably scrollable
+mid-workout.
 
 **Two vestigial schema columns** (`sessionExercises.status`,
 `sessions.currentSessionExerciseId`) are left over from the abandoned stepper design and

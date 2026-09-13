@@ -38,6 +38,11 @@ interface Props<T> {
   // `drag` is undefined when drag-to-reorder is switched off in constants/features.ts,
   // so the item can omit its grip affordance entirely rather than render a dead one.
   renderItem: (item: T, drag: DragHandle | undefined) => ReactNode;
+  // Must apply synchronously — the list zeroes every transform in the same tick it
+  // calls this, on the basis that the very next render already draws the cards in their
+  // dropped order. An implementation that reordered asynchronously would still land
+  // correctly, but the cards would visibly snap back to the pre-drag arrangement for as
+  // long as the update took.
   onReorder: (orderedKeys: string[]) => void;
   scroll: DragScrollController;
   // Vertical gap between cards. Applied as PADDING on the measured wrapper rather than
@@ -228,25 +233,6 @@ export function DraggableExerciseList<T>({
     [slotHeight, translationFor],
   );
 
-  // Where the dragged card must land to sit exactly in slot `target` — the summed
-  // heights of the cards it passed over. Exact rather than approximate, so the card
-  // settles flush into the gap instead of drifting toward it.
-  const dropOffset = useCallback(
-    (target: number) => {
-      const order = orderRef.current;
-      const from = fromIndexRef.current;
-      if (target === from) return 0;
-      let sum = 0;
-      if (target > from) {
-        for (let i = from + 1; i <= target; i++) sum += slotHeight(order[i]);
-        return sum;
-      }
-      for (let i = target; i < from; i++) sum += slotHeight(order[i]);
-      return -sum;
-    },
-    [slotHeight],
-  );
-
   const updateActivePosition = useCallback(() => {
     const key = activeKeyRef.current;
     if (!key) return;
@@ -331,42 +317,60 @@ export function DraggableExerciseList<T>({
     stopAutoScroll();
     const key = activeKeyRef.current;
     activeKeyRef.current = null;
-    setActiveKey(null);
+    // Released immediately so the ScrollView becomes scrollable again on the same
+    // frame the finger lifts, even though the card may still be settling below.
     callbacks.current.onDraggingChange?.(false);
-    if (!key) return;
+    if (!key) {
+      setActiveKey(null);
+      return;
+    }
 
     const from = fromIndexRef.current;
     const target = toIndexRef.current;
 
-    // Settle into the gap. Deliberately NOT reset to zero: the transforms have to keep
-    // holding the new arrangement until the committed order catches up (see the
-    // orderSignature effect), or the list would visibly snap back to the pre-drag order
-    // while the write is in flight.
-    //
-    // This spring is usually cut short — the store's write lands within a few
-    // milliseconds and the orderSignature effect stops it and zeroes the transform, by
-    // which point zero IS the card's correct position. So the drop reads as a snap
-    // rather than a glide. That's the deliberate trade: committing the reorder
-    // immediately keeps `orderRef` and what's on screen describing the same list at
-    // every instant, which is what makes starting a second drag straight after a first
-    // one safe. Deferring the commit to the spring's completion callback would animate
-    // more prettily and leave a ~300ms window in which a new drag reads a stale order.
-    Animated.spring(translationFor(key), {
-      toValue: dropOffset(target),
-      useNativeDriver: true,
-      overshootClamping: true,
-      speed: 20,
-      bounciness: 0,
-    }).start();
-
     if (target !== from) {
+      // Commit and zero every transform in the SAME tick. `onReorder` applies
+      // synchronously (see the prop's contract), so the next render already draws every
+      // card in its dropped position with no offset needed — there is never a frame in
+      // which a card is drawn at its new index while still carrying its old offset.
+      //
+      // This is what fixes the dropped card vanishing. The earlier version animated the
+      // card into the gap and left the transform in place until the reordered data
+      // arrived. With the reorder awaiting a database write, that gap could last long
+      // enough to matter, and during it the card was both offset from its slot AND no
+      // longer raised — so it was drawn underneath the opaque neighbour it had landed
+      // on, reappearing only when some later interaction forced a re-render.
+      //
+      // The cost is that a successful drop snaps rather than glides. That is the right
+      // trade: it keeps what is on screen and what the data says in agreement at every
+      // instant, which is also what makes starting a second drag immediately safe.
+      for (const value of translations.values()) {
+        value.stopAnimation();
+        value.setValue(0);
+      }
+
       const next = [...orderRef.current];
       next.splice(from, 1);
       next.splice(target, 0, key);
       callbacks.current.onReorder(next);
+      setActiveKey(null);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      return;
     }
-  }, [dropOffset, stopAutoScroll, translationFor]);
+
+    // Dropped back where it started: nothing to commit, so glide it home. `activeKey`
+    // is held until the spring finishes rather than cleared now, because clearing it
+    // drops the raised z-index — and a card that is still offset from its slot without
+    // that z-index slides back underneath its neighbours on the way home, the same way
+    // the reordered card used to disappear.
+    Animated.spring(translationFor(key), {
+      toValue: 0,
+      useNativeDriver: true,
+      overshootClamping: true,
+      speed: 20,
+      bounciness: 0,
+    }).start(() => setActiveKey(null));
+  }, [stopAutoScroll, translationFor, translations]);
 
   const responderFor = useCallback(
     (key: string) => {

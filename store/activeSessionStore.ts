@@ -240,20 +240,50 @@ export const useActiveSessionStore = create<ActiveSessionState>((set, get) => ({
   // this action is exactly the shape that work needs (a fully reordered list of
   // session_exercise ids), so it's retained rather than deleted and re-derived. See
   // ARCHITECTURE.md's limitations section.
+  // The ONE optimistic action in this store: memory is updated first, synchronously,
+  // and the database write follows. Everything else here is write-then-reflect (await
+  // the write, then update state from its result), and that is still the right default
+  // — but it is wrong for this one.
+  //
+  // A drag-and-drop has to land the instant the finger lifts. Awaiting the write first
+  // left a window between the drop and the re-render in which the dropped card was
+  // translated to its new position while the list still rendered it in its old slot and
+  // it had lost the raised z-index it carried during the drag — so it sat hidden behind
+  // an opaque neighbour, and only reappeared when some later interaction forced a
+  // re-render. That is the "dragged card disappears until you tap something" bug.
+  //
+  // Safe to do optimistically here, and specifically NOT safe for the others: exercise
+  // order is display-only. Nothing derives from it — not the top set, not the green
+  // arrow, not pre-fill, not duration — so an order that is briefly ahead of the
+  // database can't produce a wrong number anywhere. A failed write is rolled back so
+  // the screen never keeps showing an order that wouldn't survive a reload.
   async reorderExercises(db, orderedIds) {
-    const { sessionId } = get();
+    const { sessionId, exercises: previous } = get();
     if (!sessionId) return;
-    await reorderSessionExercises(db, sessionId, orderedIds);
-    set((state) => {
-      const byId = new Map(state.exercises.map((e) => [e.id, e]));
-      const reordered = orderedIds
-        .map((id, i) => {
-          const e = byId.get(id);
-          return e ? { ...e, position: i } : null;
-        })
-        .filter((e): e is SessionExerciseVM => e !== null);
-      return { exercises: reordered };
-    });
+
+    const byId = new Map(previous.map((e) => [e.id, e]));
+    const reordered = orderedIds
+      .map((id, i) => {
+        const e = byId.get(id);
+        return e ? { ...e, position: i } : null;
+      })
+      .filter((e): e is SessionExerciseVM => e !== null);
+
+    set({ exercises: reordered });
+
+    try {
+      await reorderSessionExercises(db, sessionId, orderedIds);
+    } catch (error) {
+      // Only roll back if this session is still the one on screen and nothing else has
+      // changed the list since — restoring a stale snapshot over a newer edit (an
+      // exercise added or removed while the write was in flight) would be worse than
+      // the order being briefly out of step with the database.
+      const current = get();
+      if (current.sessionId === sessionId && current.exercises === reordered) {
+        set({ exercises: previous });
+      }
+      throw error;
+    }
   },
 
   // Mid-session brand change (the settings-bolt row on an exercise card). Already-

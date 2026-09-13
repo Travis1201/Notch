@@ -226,11 +226,11 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
           // Drag starts here and nowhere else. Anchored at the far left, well away from
           // the remove control, and generously padded because it is a small target that
           // has to be hit reliably one-handed.
-          <View {...dragHandle.panHandlers} style={styles.dragHandle} hitSlop={10}>
+          <View {...dragHandle.panHandlers} style={styles.dragHandle} hitSlop={12}>
             <Feather
               name="menu"
-              size={16}
-              color={dragHandle.isDragging ? colors.accentLight : colors.textMuted}
+              size={21}
+              color={dragHandle.isDragging ? colors.accentLight : colors.textSecondary}
             />
           </View>
         )}
@@ -377,7 +377,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  dragHandle: { paddingRight: 10, paddingVertical: 4 },
+  // Sized up from a 16px glyph after testing: it's the only way to move an exercise,
+  // and it has to be hit first time one-handed. The padding is part of the target, not
+  // decoration — with hitSlop it gives roughly a 44pt touch area around a 21px icon.
+  dragHandle: { paddingRight: 12, paddingVertical: 6 },
   exerciseName: { fontSize: 18, fontWeight: '500', color: colors.textPrimary, flex: 1 },
   removeButton: { paddingLeft: 8 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14, paddingVertical: 2 },
