@@ -34,3 +34,55 @@ export function didImprove(current: LoggedSet | null, previous: LoggedSet | null
   if (!current || !previous) return false;
   return compareSets(current, previous) > 0;
 }
+
+// The MAGNITUDE of an improvement, for CLAUDE.md "Live PR feedback" stage 2 — the
+// "+5 lb" / "+2 reps" that sits beside the arrow for the rest of a live session.
+//
+// Kept next to `didImprove` and gated on it, rather than living in a component,
+// because the two have to agree by construction: a row that shows a delta without an
+// arrow (or vice versa) would be the same class of self-contradiction CLAUDE.md's
+// "put it in ONE named function" rule exists to prevent. Null whenever `didImprove`
+// is false, so there is exactly one definition of "this beat last time."
+export interface PrDelta {
+  kind: 'weight' | 'reps';
+  amount: number; // lb for 'weight' (convert at the display boundary), reps for 'reps'
+}
+
+// Which dimension moved follows the same precedence as `compareSets`: weight dominates.
+// A heavier top set reports its weight gain even if the reps went DOWN — reporting
+// "-1 rep" there would contradict the arrow the same row is showing, and by the app's
+// own ordering rule the lift did improve. Reps are only reported when weight held
+// steady, which is the only case in which reps decided the comparison.
+export function describeImprovement(
+  current: LoggedSet | null,
+  previous: LoggedSet | null,
+): PrDelta | null {
+  if (!didImprove(current, previous)) return null;
+  const now = current!;
+  const before = previous!;
+  if (now.weight > before.weight) {
+    return { kind: 'weight', amount: now.weight - before.weight };
+  }
+  return { kind: 'reps', amount: now.reps - before.reps };
+}
+
+// At most one decimal, trailing ".0" dropped. Weight deltas are whole numbers in lb
+// (the increment is 2.5, so "+2.5 lb" is real and must survive) but land on long
+// fractions once converted to kg — "+2.3 kg", not "+2.2679618708 kg".
+function trimNumber(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+// Formatting takes the unit conversion as a callback so this file stays unit-agnostic
+// and keeps storing/reasoning in lb, per CLAUDE.md "Units": convert only at the UI
+// boundary. Pluralisation of "rep" is called out explicitly in the spec.
+export function formatPrDelta(
+  delta: PrDelta,
+  options: { toDisplayWeight: (lb: number) => number; unitLabel: string },
+): string {
+  if (delta.kind === 'weight') {
+    return `+${trimNumber(options.toDisplayWeight(delta.amount))} ${options.unitLabel}`;
+  }
+  return `+${delta.amount} ${delta.amount === 1 ? 'rep' : 'reps'}`;
+}

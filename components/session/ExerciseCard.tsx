@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 import { colors } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
@@ -11,9 +12,15 @@ import {
   useActiveSessionStore,
   EMPTY_SETS,
   type SessionExerciseVM,
+  type SetRow,
 } from '../../store/activeSessionStore';
 import { useRestTimerStore } from '../../store/restTimerStore';
-import { selectTopSet, didImprove } from '../../lib/progression';
+import {
+  selectTopSet,
+  didImprove,
+  describeImprovement,
+  formatPrDelta,
+} from '../../lib/progression';
 import { classifyWarmups } from '../../lib/warmups';
 import {
   resolveRestSeconds,
@@ -38,6 +45,20 @@ interface Props {
 }
 
 const LAST_TIME_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+
+// CLAUDE.md "Live PR feedback" stage 1: "a pulse, not a persistent state... settles
+// back to normal after well under a second."
+const PR_PULSE_IN_MS = 140;
+const PR_PULSE_HOLD_MS = 180;
+const PR_PULSE_OUT_MS = 260;
+// "a small scale bump" and "a brief flat-color tint" — 3% and a 22%-opacity flat fill.
+// No glow, no gradient, per the same constraint the rest of the app follows.
+const PR_PULSE_SCALE = 1.03;
+const PR_PULSE_TINT_OPACITY = 0.22;
+// The success haptic trails the per-set tap slightly. Fired in the same frame the two
+// read as one buzz, which defeats the point — CLAUDE.md wants the light tap on every
+// set precisely so the PR haptic is felt as something different.
+const PR_HAPTIC_DELAY_MS = 130;
 
 // One exercise's section of the active workout, laid out to notch-ui-mockups.png's
 // middle panel: name, the equipment-brand row, the accent-tinted "Last time" block,
@@ -76,6 +97,13 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   const [entryWeight, setEntryWeight] = useState(0);
   const [entryReps, setEntryReps] = useState(0);
   const [entryRir, setEntryRir] = useState(0);
+
+  // One value drives both halves of the PR pulse. Native driver throughout, like every
+  // other animation in this app — the tint is an overlay's OPACITY rather than an
+  // animated backgroundColor precisely so it can stay on the native driver (colour
+  // interpolation can't), and so nothing here risks mixing drivers on one value.
+  const prPulse = useRef(new Animated.Value(0)).current;
+  const prPulseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const variantId = sessionExercise.equipmentVariantId;
 
@@ -148,6 +176,66 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastWorkingSetsLoaded, lastWorkingSets, setCount, variantId, unit]);
 
+  // CLAUDE.md "Live PR feedback" stage 1. Fires once per PR and settles; it is
+  // deliberately not a state anything else reads, because stage 2's delta — the part
+  // that persists — is derived from the sets themselves on every render, not from
+  // whether this ran.
+  const celebratePr = useCallback(() => {
+    if (prPulseTimeout.current) clearTimeout(prPulseTimeout.current);
+    prPulseTimeout.current = setTimeout(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }, PR_HAPTIC_DELAY_MS);
+
+    prPulse.stopAnimation();
+    Animated.sequence([
+      Animated.timing(prPulse, {
+        toValue: 1,
+        duration: PR_PULSE_IN_MS,
+        useNativeDriver: true,
+      }),
+      Animated.delay(PR_PULSE_HOLD_MS),
+      Animated.timing(prPulse, {
+        toValue: 0,
+        duration: PR_PULSE_OUT_MS,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [prPulse]);
+
+  useEffect(
+    () => () => {
+      if (prPulseTimeout.current) clearTimeout(prPulseTimeout.current);
+    },
+    [],
+  );
+
+  // Decides whether an action just produced a NEW personal record, by comparing the
+  // session's top set before and after it. `before` is the render-time `topSet`; the
+  // after-state is read from the store rather than from this render's props, which are
+  // a render behind by the time an awaited write resolves.
+  //
+  // Comparing the two is what keeps the pulse honest. Logging a set worse than today's
+  // best leaves the top set untouched and celebrates nothing; logging a better one, or
+  // editing a set into being the best, changes it and does. Deleting a set can only
+  // ever remove a PR, never create one, so it needs no handling here — stage 2's label
+  // simply stops being derived.
+  const evaluatePrAfterChange = useCallback(
+    (before: SetRow | null) => {
+      const after = useActiveSessionStore.getState().setsByEquipmentVariantId[variantId] ?? EMPTY_SETS;
+      const nextTop = selectTopSet(after, repFloor);
+      if (!didImprove(nextTop, lastTopSet ?? null)) return;
+      const unchanged =
+        before !== null &&
+        nextTop !== null &&
+        before.id === nextTop.id &&
+        before.weight === nextTop.weight &&
+        before.reps === nextTop.reps;
+      if (unchanged) return;
+      celebratePr();
+    },
+    [celebratePr, lastTopSet, repFloor, variantId],
+  );
+
   if (!exercise || !settings) {
     return (
       <View style={styles.loadingCard}>
@@ -179,6 +267,17 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   const topSet = selectTopSet(setsThisSession, repFloor);
   const improved = didImprove(topSet, lastTopSet ?? null);
 
+  // CLAUDE.md "Live PR feedback" stage 2, and both of its correctness notes fall out of
+  // computing it here rather than storing it: the label is attached to whichever set
+  // currently IS the session's top set, so it moves on its own when a later set
+  // overtakes an earlier one, and it recomputes when a logged set is edited — because
+  // both of those change `topSet`, which this reads. Nothing is keyed to a set id and
+  // nothing is cached.
+  const prDelta = describeImprovement(topSet, lastTopSet ?? null);
+  const improvementLabel = prDelta
+    ? formatPrDelta(prDelta, { toDisplayWeight: formatWeight, unitLabel: unit })
+    : null;
+
   // "Last time · Aug 31 / 225 × 7 @ 1 RIR" — the date comes from the top set's own
   // loggedAt rather than its session's date row, which is what makes this correct
   // without a second query: the set is by definition in the previous session, and its
@@ -189,11 +288,17 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   const editingSet = editingSetId ? setsThisSession.find((s) => s.id === editingSetId) ?? null : null;
 
   async function handleLogSet() {
+    const topSetBefore = topSet;
+    // CLAUDE.md "Live PR feedback": "A plain haptic tap (light impact) fires on every
+    // logged set regardless." Fired before the write, not after it, so the confirmation
+    // is felt on the tap rather than on the round-trip.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     await logSet(db, variantId, {
       weight: toLb(entryWeight, unit),
       reps: Math.round(entryReps),
       rir: entryRir,
     });
+    evaluatePrAfterChange(topSetBefore);
     startRestTimer(restSeconds, sessionExercise.exerciseId);
   }
 
@@ -220,7 +325,23 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   }
 
   return (
-    <View style={[styles.card, dragHandle?.isDragging && styles.cardDragging]}>
+    <Animated.View
+      style={[
+        styles.card,
+        dragHandle?.isDragging && styles.cardDragging,
+        { transform: [{ scale: prPulse.interpolate({ inputRange: [0, 1], outputRange: [1, PR_PULSE_SCALE] }) }] },
+      ]}
+    >
+      {/* The flat tint. An overlay rather than an animated backgroundColor so it stays
+          on the native driver, and green because CLAUDE.md reserves it for progression
+          indicators — which is exactly what a PR is. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.prTint,
+          { opacity: prPulse.interpolate({ inputRange: [0, 1], outputRange: [0, PR_PULSE_TINT_OPACITY] }) },
+        ]}
+      />
       <View style={styles.titleRow}>
         {dragHandle && (
           // Drag starts here and nowhere else. Anchored at the far left, well away from
@@ -277,6 +398,7 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
               isWarmup={warmupById.get(s.id) ?? false}
               isCurrentTopSet={topSet?.id === s.id}
               improved={improved}
+              improvementLabel={topSet?.id === s.id ? improvementLabel : null}
               formatWeight={formatWeight}
               onOpenEdit={() => setEditingSetId(s.id)}
               onToggleWarmup={() => toggleWarmupOverride(db, s)}
@@ -331,12 +453,16 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
           onClose={() => setEditingSetId(null)}
           onSave={async ({ weight, reps, rir }) => {
             const setId = editingSet.id;
+            const topSetBefore = topSet;
             setEditingSetId(null);
             await updateSet(db, setId, variantId, {
               weight: toLb(weight, unit),
               reps: Math.round(reps),
               rir,
             });
+            // CLAUDE.md: "Editing a logged set mid-session must re-trigger this,
+            // exactly like logging a new one."
+            evaluatePrAfterChange(topSetBefore);
           }}
           onDelete={async () => {
             const setId = editingSet.id;
@@ -345,7 +471,7 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
           }}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -364,6 +490,15 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cardDragging: { borderWidth: 0.5, borderColor: colors.accent },
+  prTint: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 14,
+    backgroundColor: colors.textSuccess,
+  },
   loadingCard: {
     backgroundColor: colors.surface1,
     borderRadius: 14,

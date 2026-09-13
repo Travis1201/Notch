@@ -14,6 +14,11 @@ interface Props {
   isWarmup: boolean;
   isCurrentTopSet: boolean;
   improved: boolean;
+  // CLAUDE.md "Live PR feedback" stage 2: the "+5 lb" / "+2 reps" magnitude beside the
+  // arrow. Passed ONLY by the active workout screen — History and Progress leave it
+  // undefined, which is stage 3 ("reverts on finish") falling out for free rather than
+  // needing a status check in here. Never stored; derived on every render.
+  improvementLabel?: string | null;
   formatWeight: (lb: number) => number;
   onOpenEdit: () => void;
   onToggleWarmup: () => void;
@@ -65,6 +70,7 @@ export function SetTableRow({
   isWarmup,
   isCurrentTopSet,
   improved,
+  improvementLabel,
   formatWeight,
   onOpenEdit,
   onToggleWarmup,
@@ -183,7 +189,14 @@ export function SetTableRow({
           nothing at all, never a red arrow or a "0" (CLAUDE.md "The green
           up-arrow"), so the spacer keeps rows aligned without implying a verdict. */}
       {isCurrentTopSet && improved ? (
-        <Feather name="arrow-up-right" size={14} color={colors.textSuccess} />
+        <>
+          {improvementLabel ? (
+            <Text style={styles.improvementLabel} numberOfLines={1}>
+              {improvementLabel}
+            </Text>
+          ) : null}
+          <Feather name="arrow-up-right" size={14} color={colors.textSuccess} />
+        </>
       ) : (
         <View style={styles.arrowSpacer} />
       )}
@@ -251,5 +264,6 @@ const styles = StyleSheet.create({
   mutedText: { color: colors.textMuted },
   warmupLabel: { fontSize: 11, color: colors.textMuted },
   rirLabel: { fontSize: 12, color: colors.textSecondary },
+  improvementLabel: { fontSize: 12, fontWeight: '500', color: colors.textSuccess },
   arrowSpacer: { width: 14 },
 });

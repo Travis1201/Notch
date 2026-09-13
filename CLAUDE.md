@@ -170,6 +170,7 @@ Warm-ups are excluded from all progression calculations.
   migrations
 - **Zustand** or React Context for the active-workout session state
 - **victory-native** or **react-native-gifted-charts** for progression graphs
+- **expo-haptics** for set-logged and PR haptic feedback (see Live PR feedback)
 - **No backend, no auth, no network calls**
 
 ### Why Expo over native Swift
@@ -205,13 +206,6 @@ This also handles cases a snapshot would get wrong:
 
 **Never build an "update template weights" prompt.** It's the wrong model.
 
-Once templates exist, a session started from one has an actual planned exercise
-count — show it somewhere (e.g. in the active workout header, or on the session once
-finished). This is **not** the old "N of M" stepper counter (that's gone for good, see
-"Active workout screen") — no forced order, no gating, purely "X of Y logged so far,"
-the same display-only spirit as an untouched exercise's dimming. An empty/ad-hoc
-session has no template and so has no such count to show.
-
 #### Structure changes DO prompt
 
 If the finished session's exercise list differs from the template (added, removed, or
@@ -235,13 +229,7 @@ A real workout deviates from the plan constantly. The app must not fight this.
   reasonably grouped (e.g. by muscle group, or recent/frequent first per the existing
   pre-fill logic) so the user can scroll and tap without typing anything. The search bar
   filters that same list live as text is entered; it doesn't replace browsing.
-- **No explicit "Skip."** With every exercise always visible and no forced order,
-  there's nothing left for a skip action to do — doing the last exercise on the list
-  first is identical to doing the first one first, and a session isn't asked about
-  exercises it never touched. An exercise with zero sets logged is just that: display-
-  only, never a gate, never prompted about at Finish (see "State a live session must
-  persist"). **Reorder** — changing the scroll's display order, a pure preference with
-  no functional effect — must still be available mid-session.
+- **Skip** and **reorder** must both be available mid-session.
 
 ---
 
@@ -255,14 +243,66 @@ A real workout deviates from the plan constantly. The app must not fight this.
 - Per-template colour dots identify training days at a glance.
 
 ### The green up-arrow
+
 Marks a lift whose top set beat the previous session on the same equipment variant.
 
-- Appears on the logging screen next to the set, and as a count on home-screen template
-  rows ("Pull day ↗2" = two lifts improved last time).
+**"Beat" uses the same ordering as top-set selection itself**: this session's top set
+beats the previous one if its weight is higher, or — at equal weight — if its reps are
+higher. A heavier weight for fewer reps still counts as beating it (weight dominates,
+same as the top-set tiebreak rule); more reps at a *lower* weight does not. This makes
+the definition symmetric with "only the top set counts" rather than a separate rule
+that could disagree with it.
+
+- **At rest** (history, progress chart, home-screen template counts), this stays exactly
+  as spec'd below: direction only, no magnitude. "Pull day ↗2" = two lifts improved last
+  time, nothing shown at all for a flat session.
 - **A session with zero improvements shows nothing** — no red arrow, no "0". Users train
   near failure by design; flat sessions are routine and must not read as failure.
 - The definition must be computed identically everywhere it appears (logging screen,
-  home, history). Put it in one shared function.
+  home, history, and the live-session behaviour below). Put it in one shared function —
+  this is now load-bearing for three different pieces of UI, not one.
+
+### Live PR feedback (active session only)
+
+The plain arrow above is correct for *browsing* — quiet, low-noise, skimmable across
+many rows. It is not enough for the *moment* a PR happens, which deserves a beat of
+actual feedback. This applies only while `status = in_progress`; a finished session
+shown in History or Progress reverts entirely to the plain-arrow behaviour above —
+never show magnitude outside a live session.
+
+Three stages on the same set row, in sequence:
+
+1. **Instant, one-time celebration.** The moment a logged set becomes a new PR: a brief
+   flat-color tint and a small scale bump on that exercise's card (no glow, no gradient —
+   matches the constraint everywhere else in this app), paired with a success haptic
+   (`expo-haptics` notification-success). A plain haptic tap (light impact) fires on
+   every logged set regardless, so the success haptic reads as distinct. This fires once
+   and settles back to normal after well under a second — it's a pulse, not a persistent
+   state.
+2. **Persistent-for-the-session delta.** After the pulse settles, that set's row keeps
+   the arrow but adds a magnitude: **"+5 lb"** if weight increased, or **"+1 rep"** /
+   **"+2 reps"** (mind the plural) if weight was unchanged and reps increased. Respect
+   the active unit setting — lb or kg, converted at the display boundary like everywhere
+   else. This stays visible for the rest of the active session.
+3. **Reverts on finish.** Once the session is finalized, this row goes back to the plain
+   arrow with no magnitude, same as every other historical row. The delta is a live-
+   session affordance, not a new permanent history feature — don't store it as a column;
+   it's derived the same way the plain arrow is, just rendered richer while
+   `in_progress`.
+
+Two correctness details worth getting right, since both fall out of "derive, don't
+cache" but are easy to miss in the implementation:
+
+- **The delta follows whichever set currently holds "top set of this session," not a
+  fixed set.** If an early set is today's best and a later set overtakes it, the delta
+  moves to the new set's row and recomputes against the same previous-session baseline.
+  This falls out naturally if the shared top-set function re-runs on every set logged —
+  don't attach the delta to a specific `SetEntry` id.
+- **Editing a logged set mid-session must re-trigger this**, exactly like logging a new
+  one. If editing a set's weight changes which set is the session's top, or changes
+  whether it beats the previous session at all, the delta (and the plain-arrow state
+  everywhere else) must update accordingly — this is a consequence of the "logged sets
+  stay editable" rule, not a separate feature to build.
 
 ### Home screen
 - Templates are the entire screen. No dashboard, no summary stats, no recent-session
@@ -315,6 +355,10 @@ the core structural change is real and non-negotiable:
 - Keep weight/reps steppers (+/-) available for quick adjustment, but every numeric
   field must also support direct tap-to-edit. See "Numeric input" below for the bug this
   surfaced.
+- **PR feedback on this screen follows the three-stage model in "Live PR feedback"
+  above** (Visual design section) — the instant celebration + haptic, then the
+  persistent "+5 lb" delta on that exercise's row for the rest of the session. This is
+  part of the same screen redesign, not a separate feature.
 
 ### Numeric input (bug — fix at the component level, not per-screen)
 

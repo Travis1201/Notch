@@ -165,9 +165,18 @@ each in exactly one named function:
   no separate filter step is needed to keep warm-ups out of progression math.
 - `didImprove` (progression.ts) — the green-arrow rule: true iff both a current and
   previous top set exist and the current one wins the same comparison `selectTopSet`
-  uses. A session with no prior top set (or that doesn't beat it) shows nothing, never
-  a red arrow or a "0" — CLAUDE.md is explicit that flat sessions must not read as
-  failure.
+  uses. Sharing `compareSets` is the point: "beat" and "top set" can't disagree, so a
+  heavier top set for fewer reps counts as an improvement (weight dominates) while more
+  reps at a lighter weight does not. A session with no prior top set (or that doesn't
+  beat it) shows nothing, never a red arrow or a "0" — CLAUDE.md is explicit that flat
+  sessions must not read as failure.
+- `describeImprovement` / `formatPrDelta` (progression.ts) — the *magnitude* behind that
+  arrow, for live PR feedback (below). Gated on `didImprove` and returning null whenever
+  it is false, so a row can never show a delta without an arrow or an arrow without a
+  delta. Which dimension it reports follows the same precedence as the comparison:
+  weight if weight moved, reps only if weight held steady — reporting "-1 rep" on a
+  heavier top set would contradict the arrow on its own row. Amounts stay in lb;
+  `formatPrDelta` takes the conversion as a callback so the file stays unit-agnostic.
 - `classifyWarmups` (warmups.ts) — a set is a warm-up iff it was logged before the top
   set (by session-global `position`, not per-exercise) and is lighter than it, unless
   `isWarmupOverride` says otherwise. **Back-off-set decision**: a set logged *after*
@@ -434,6 +443,43 @@ also what makes starting a second drag immediately safe. A card dropped back whe
 started has nothing to commit, so it does glide home — and keeps its raised z-index until
 the spring finishes, since a card still offset from its slot without it would slide back
 underneath its neighbours on the way.
+
+### Live PR feedback
+
+CLAUDE.md gives the plain green arrow two registers: quiet and direction-only when
+*browsing* (history, charts, home-screen counts), and something louder at the *moment* a
+PR happens. The louder version exists only while a session is `in_progress`, in three
+stages, all inside `ExerciseCard`.
+
+**Stage 1, the pulse.** A flat green tint and a 3% scale bump on the exercise's card,
+plus a success haptic, settling in well under a second. The tint is an overlay's
+animated *opacity* rather than an animated `backgroundColor` — colour interpolation
+can't run on the native driver, and every animation in this app stays native-driven
+(mixing drivers on one value is itself a crash). Green because CLAUDE.md reserves it for
+progression indicators, which is exactly what this is. A light-impact haptic fires on
+*every* logged set, which is what makes the PR haptic read as something different; the
+success one is delayed ~130ms so the two aren't felt as a single buzz.
+
+**Stage 2, the persistent delta.** The top set's row keeps its arrow and gains a
+magnitude — "+5 lb", "+2 reps" — for the rest of the session. Both of CLAUDE.md's
+correctness notes fall out of deriving it on every render rather than storing it: it's
+attached to whichever set *currently* holds top-set status, so it moves on its own when
+a later set overtakes an earlier one, and editing a logged set recomputes it. Nothing is
+keyed to a set id.
+
+**Stage 3, reverting on finish**, needs no code at all. The delta is a prop only the
+active workout screen passes; History and Progress leave it undefined and render the
+plain arrow, so "live only" is structural rather than a `status` check that could be
+forgotten in one of the three places the arrow appears.
+
+The pulse is the one piece that *can't* be derived — a pulse is an event, not a state —
+so it's triggered explicitly, by comparing the session's top set before and after a log
+or an edit. That comparison is what keeps it honest: logging a set worse than today's
+best leaves the top set untouched and celebrates nothing, while logging a better one, or
+editing a set into being the best, changes it and does. Deleting a set can only remove a
+PR, never create one, so it needs no handling. The after-state is read from the store
+with `getState()` rather than from props, which are a render behind by the time an
+awaited write resolves.
 
 `useKeepAwake()` holds the screen on for the session; `useRestTimerNotifications()` is
 mounted once here.
