@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   submitButtonDisabled: { opacity: 0.4 },
-  submitLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  submitLabel: { fontSize: 15, fontWeight: '600', color: colors.onAccent },
   deleteRow: { alignItems: 'center', marginTop: 20, padding: 10 },
   deleteLabel: { fontSize: 13, color: colors.textError },
 });

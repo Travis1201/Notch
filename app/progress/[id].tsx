@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   },
   pillSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
   pillLabel: { fontSize: 12, color: colors.textSecondary },
-  pillLabelSelected: { color: '#fff' },
+  pillLabelSelected: { color: colors.onAccent },
   content: { padding: 16 },
   bestRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginBottom: 2 },
   bestValue: { ...numeric.display, color: colors.textPrimary },

@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 4,
   },
-  saveLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  saveLabel: { fontSize: 15, fontWeight: '600', color: colors.onAccent },
   deleteButton: { height: 44, alignItems: 'center', justifyContent: 'center' },
   deleteLabel: { fontSize: 15, color: colors.textError },
 });

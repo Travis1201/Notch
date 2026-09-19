@@ -112,7 +112,7 @@ export function FinishWorkoutModal({
 
           <Pressable style={styles.toggleRow} onPress={onToggleSaveChanges}>
             <View style={[styles.checkbox, saveChangesToTemplate && styles.checkboxChecked]}>
-              {saveChangesToTemplate && <Feather name="check" size={14} color="#fff" />}
+              {saveChangesToTemplate && <Feather name="check" size={14} color={colors.onAccent} />}
             </View>
             <Text style={styles.toggleLabel}>
               Save these changes to {templateName}

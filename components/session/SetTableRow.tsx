@@ -273,7 +273,7 @@ export function SetTableRow({
           the container is what keeps the red inside the row's rounded corners. */}
       <View style={styles.actionLayer} pointerEvents={isSwipeOpen ? 'auto' : 'none'}>
         <Pressable style={styles.deleteAction} onPress={handleDeletePress}>
-          <Feather name="trash-2" size={17} color="#fff" />
+          <Feather name="trash-2" size={17} color={colors.onDanger} />
           <Text style={styles.deleteActionLabel}>Delete</Text>
         </Pressable>
       </View>
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 2,
   },
-  deleteActionLabel: { fontSize: 11, fontWeight: '500', color: '#fff' },
+  deleteActionLabel: { fontSize: 11, fontWeight: '500', color: colors.onDanger },
   rowSlider: { backgroundColor: colors.surface },
   row: {
     flexDirection: 'row',

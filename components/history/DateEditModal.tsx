@@ -82,5 +82,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  saveLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  saveLabel: { fontSize: 15, fontWeight: '600', color: colors.onAccent },
 });

@@ -74,7 +74,14 @@ export function ConfirmModal({
             ]}
             onPress={onConfirm}
           >
-            <Text style={styles.confirmLabel}>{confirmLabel}</Text>
+            <Text
+              style={[
+                styles.confirmLabel,
+                confirmTone === 'destructive' && styles.confirmLabelDestructive,
+              ]}
+            >
+              {confirmLabel}
+            </Text>
           </Pressable>
           <Pressable style={styles.cancelButton} onPress={onClose}>
             <Text style={styles.cancelLabel}>{cancelLabel}</Text>
@@ -114,7 +121,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   confirmButtonDestructive: { backgroundColor: colors.danger },
-  confirmLabel: { fontSize: 16, fontWeight: '500', color: '#fff' },
+  // This button is accent or danger depending on the action, so its ink tracks
+  // the fill rather than assuming both take the same one.
+  confirmLabel: { fontSize: 16, fontWeight: '500', color: colors.onAccent },
+  confirmLabelDestructive: { color: colors.onDanger },
   cancelButton: { height: 48, alignItems: 'center', justifyContent: 'center' },
   cancelLabel: { fontSize: 15, color: colors.textSecondary },
 });

@@ -36,7 +36,29 @@ export const colors = {
   accentLight: '#9cc7ef',
   accentLighter: '#cfe4f8',
   accentTintBg: '#17263a',
+  // Ink drawn ON a filled accent surface: the hero card's title and numbers, a
+  // primary button's label, a selected pill, a checked checkbox's tick. A token
+  // rather than a literal '#fff' scattered across a dozen components, because it
+  // is only white for as long as the accent stays dark enough to carry white — a
+  // lighter or warmer accent needs dark ink instead, and swapping an accent must
+  // not mean hunting down every button label that assumed the old one.
+  onAccent: '#ffffff',
+  // A hairline drawn on a filled accent surface (the hero card's exercise rows).
+  // Same reasoning: it is white-at-low-alpha only because the accent is dark.
+  onAccentBorder: 'rgba(255,255,255,0.16)',
+  // Ink on the danger fill. Deliberately separate from onAccent: danger stays a
+  // saturated red whatever the accent does, so this stays white even when
+  // onAccent doesn't. ConfirmModal's button is accent or danger depending on the
+  // action and needs both.
+  onDanger: '#ffffff',
 } as const;
+
+// Per-template dots (CLAUDE.md "Visual design > Color") — muted hues that are
+// neither the success green nor the accent, so a dot never reads as either. Lives
+// here rather than beside the hashing logic in lib/templateColor.ts because these
+// are palette values: they have to be re-picked against whatever base and accent
+// are current, and the point of this file is that such a re-pick is one edit.
+export const templateDots = ['#c17d4f', '#8f6fbf', '#4f9dc1', '#bf5f7d', '#a89a4f'] as const;
 
 // Corner radii by role, so a shape says what an element is: a card is visibly a
 // different kind of object from a button, and a button from a row inside a card.

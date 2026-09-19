@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  finishButtonLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  finishButtonLabel: { fontSize: 15, fontWeight: '600', color: colors.onAccent },
   list: { flex: 1 },
   listContent: { padding: 16 },
   emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: 16 },

@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   },
   pillSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
   pillText: { fontSize: 13, color: colors.textSecondary },
-  pillTextSelected: { color: '#fff' },
+  pillTextSelected: { color: colors.onAccent },
   actions: { flexDirection: 'row', gap: 10, marginTop: 24 },
   cancelButton: { flex: 1, height: 46, alignItems: 'center', justifyContent: 'center' },
   cancelLabel: { fontSize: 15, color: colors.textSecondary },
@@ -157,5 +157,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   submitButtonDisabled: { opacity: 0.4 },
-  submitLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  submitLabel: { fontSize: 15, fontWeight: '600', color: colors.onAccent },
 });

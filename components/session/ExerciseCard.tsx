@@ -560,6 +560,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logButtonQuiet: { backgroundColor: colors.accentTintBg },
-  logLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  logLabel: { fontSize: 15, fontWeight: '600', color: colors.onAccent },
   logLabelQuiet: { color: colors.accentLight },
 });
