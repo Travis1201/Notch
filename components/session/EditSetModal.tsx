@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../../constants/theme';
+import { colors, radii } from '../../constants/theme';
 import { NumberStepper } from './NumberStepper';
 import { RirSelector } from './RirSelector';
 
@@ -99,7 +99,7 @@ export function EditSetModal({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   stepperRow: { flexDirection: 'row', gap: 8 },
   saveButton: {
     height: 48,
-    borderRadius: 8,
+    borderRadius: radii.button,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',

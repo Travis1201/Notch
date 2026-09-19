@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric, radii } from '../../constants/theme';
 import { GESTURE_FEATURES } from '../../constants/features';
 
 interface Props {
@@ -19,6 +19,12 @@ interface Props {
   // undefined, which is stage 3 ("reverts on finish") falling out for free rather than
   // needing a status check in here. Never stored; derived on every render.
   improvementLabel?: string | null;
+  // UI-changes.md: the PR moment is the app's ONE animated beat, and it lands on the
+  // number itself. The active workout passes its latest PR celebration to the top-set
+  // row; History and Progress never pass it. `at` is a timestamp rather than a counter
+  // so a row that mounts BECAUSE of the PR (the common case — a freshly logged set)
+  // still plays it, while a row that merely remounts later doesn't replay a stale one.
+  prCelebration?: { at: number } | null;
   formatWeight: (lb: number) => number;
   onOpenEdit: () => void;
   onToggleWarmup: () => void;
@@ -38,9 +44,21 @@ const OPEN_THRESHOLD = 36;
 // of hitting a wall — it reads as elastic rather than broken.
 const MAX_TRAVEL = ACTION_WIDTH + 28;
 
+// The PR pulse: the weight × reps swell and flash green, then settle — well under a
+// second in total (CLAUDE.md "Live PR feedback": "a pulse, not a persistent state").
+// Scale and a flat colour crossfade only; no glow, no gradient.
+const PR_PULSE_IN_MS = 150;
+const PR_PULSE_HOLD_MS = 220;
+const PR_PULSE_OUT_MS = 320;
+const PR_PULSE_SCALE = 1.22;
+// A celebration older than this is history, not news; a row mounting now skips it.
+const PR_PULSE_FRESH_MS = 800;
+
 // One already-logged set, styled to notch-ui-mockups.png's set list: a muted index
-// cell, "230 × 7" as the row's body, and RIR (or the word "warm-up") trailing. A
-// working set sits on a surface3 pill; an inferred warm-up is greyed with no fill,
+// cell, "230 × 7" as the row's body, and RIR (or the word "warm-up") trailing. The
+// weight and reps are the loudest thing on the row, in fixed-width tabular columns so
+// a stack of sets lines up digit for digit; the "×" and "RIR" are quiet. A working set
+// sits on a surfaceRaised pill; an inferred warm-up is greyed with no fill,
 // which is exactly CLAUDE.md's "render greyed out" requirement.
 //
 // There is no Previous column. The mockup carries last session's numbers ONCE per
@@ -71,6 +89,7 @@ export function SetTableRow({
   isCurrentTopSet,
   improved,
   improvementLabel,
+  prCelebration,
   formatWeight,
   onOpenEdit,
   onToggleWarmup,
@@ -80,6 +99,31 @@ export function SetTableRow({
   onSwipeClose,
 }: Props) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const prPulse = useRef(new Animated.Value(0)).current;
+  const lastCelebratedAt = useRef(0);
+
+  useEffect(() => {
+    if (!prCelebration || prCelebration.at <= lastCelebratedAt.current) return;
+    lastCelebratedAt.current = prCelebration.at;
+    if (Date.now() - prCelebration.at > PR_PULSE_FRESH_MS) return;
+    prPulse.stopAnimation();
+    prPulse.setValue(0);
+    Animated.sequence([
+      Animated.timing(prPulse, {
+        toValue: 1,
+        duration: PR_PULSE_IN_MS,
+        easing: Easing.out(Easing.back(2)),
+        useNativeDriver: true,
+      }),
+      Animated.delay(PR_PULSE_HOLD_MS),
+      Animated.timing(prPulse, {
+        toValue: 0,
+        duration: PR_PULSE_OUT_MS,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [prCelebration, prPulse]);
   // The row's resting position: 0 (closed) or -ACTION_WIDTH (open). A drag is measured
   // from here, so swiping an already-open row further doesn't jump back to zero first.
   const restingOffset = useRef(0);
@@ -174,14 +218,32 @@ export function SetTableRow({
     >
       <Text style={[styles.index, isWarmup && styles.mutedText]}>{index}</Text>
 
-      <Text style={[styles.value, isWarmup && styles.mutedValue]}>
-        {formatWeight(weight)} × {reps}
-      </Text>
+      {/* The green copy sits exactly over the white one and only its opacity animates,
+          so the colour flash stays on the native driver (colour interpolation can't).
+          Scaled from the left edge so the swell doesn't push into the index cell. */}
+      <Animated.View
+        style={[
+          styles.valueGroup,
+          { transform: [{ scale: prPulse.interpolate({ inputRange: [0, 1], outputRange: [1, PR_PULSE_SCALE] }) }] },
+        ]}
+      >
+        <SetValue weight={formatWeight(weight)} reps={reps} muted={isWarmup} />
+        {prCelebration ? (
+          <Animated.View pointerEvents="none" style={[styles.valueOverlay, { opacity: prPulse }]}>
+            <SetValue weight={formatWeight(weight)} reps={reps} muted={false} success />
+          </Animated.View>
+        ) : null}
+      </Animated.View>
+
+      <View style={styles.spacer} />
 
       {isWarmup ? (
         <Text style={styles.warmupLabel}>warm-up</Text>
       ) : (
-        <Text style={styles.rirLabel}>{rir >= 4 ? '4+' : rir} RIR</Text>
+        <View style={styles.rirGroup}>
+          <Text style={styles.rirValue}>{rir >= 4 ? '4+' : rir}</Text>
+          <Text style={styles.rirLabel}>RIR</Text>
+        </View>
       )}
 
       {/* Green arrow on the session's own top set when it beat last session's — the
@@ -217,7 +279,7 @@ export function SetTableRow({
       </View>
 
       {/* Opaque, so the action layer can't show through a warm-up row's transparent
-          fill. surface1 is the card's own background, so this is visually identical
+          fill. `surface` is the card's own background, so this is visually identical
           to the ungestured row. */}
       <Animated.View
         style={[styles.rowSlider, { transform: [{ translateX }] }]}
@@ -229,8 +291,33 @@ export function SetTableRow({
   );
 }
 
+function SetValue({
+  weight,
+  reps,
+  muted,
+  success = false,
+}: {
+  weight: number;
+  reps: number;
+  muted: boolean;
+  success?: boolean;
+}) {
+  const numberStyle = [styles.number, muted && styles.mutedNumber, success && styles.successText];
+  return (
+    <View style={styles.valueRow}>
+      <Text style={[numberStyle, styles.weightCell]} numberOfLines={1}>
+        {weight}
+      </Text>
+      <Text style={[styles.times, success && styles.successText]}>×</Text>
+      <Text style={[numberStyle, styles.repsCell]} numberOfLines={1}>
+        {reps}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  swipeContainer: { borderRadius: 8, overflow: 'hidden' },
+  swipeContainer: { borderRadius: radii.row, overflow: 'hidden' },
   actionLayer: {
     position: 'absolute',
     top: 0,
@@ -248,22 +335,34 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   deleteActionLabel: { fontSize: 11, fontWeight: '500', color: '#fff' },
-  rowSlider: { backgroundColor: colors.surface1 },
+  rowSlider: { backgroundColor: colors.surface },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 9,
+    paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: radii.row,
   },
-  rowWorking: { backgroundColor: colors.surface3 },
-  index: { fontSize: 12, color: colors.textSecondary, width: 14 },
-  value: { fontSize: 14, fontWeight: '500', color: colors.textPrimary, flex: 1 },
-  mutedValue: { color: colors.textMuted, fontWeight: '400' },
+  rowWorking: { backgroundColor: colors.surfaceRaised },
+  index: { ...numeric.small, color: colors.textMuted, width: 16 },
+  valueGroup: { transformOrigin: 'left center' },
+  valueOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  valueRow: { flexDirection: 'row', alignItems: 'baseline' },
+  number: { ...numeric.set, color: colors.textPrimary },
+  mutedNumber: { color: colors.textMuted, fontWeight: '400' },
+  successText: { color: colors.textSuccess },
+  // Fixed widths so every row's "×" lands in the same place: weight right-aligned
+  // (wide enough for "1102.5"), reps left-aligned.
+  weightCell: { width: 64, textAlign: 'right' },
+  times: { fontSize: 13, color: colors.textMuted, marginHorizontal: 6 },
+  repsCell: { width: 28 },
+  spacer: { flex: 1 },
   mutedText: { color: colors.textMuted },
   warmupLabel: { fontSize: 11, color: colors.textMuted },
-  rirLabel: { fontSize: 12, color: colors.textSecondary },
-  improvementLabel: { fontSize: 12, fontWeight: '500', color: colors.textSuccess },
+  rirGroup: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
+  rirValue: { ...numeric.inline, color: colors.textSecondary },
+  rirLabel: { fontSize: 10, color: colors.textMuted },
+  improvementLabel: { ...numeric.small, fontWeight: '600', color: colors.textSuccess },
   arrowSpacer: { width: 14 },
 });

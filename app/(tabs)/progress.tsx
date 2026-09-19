@@ -58,7 +58,10 @@ export default function ProgressScreen() {
           keyExtractor={(item) => item.variantId}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <Pressable style={styles.row} onPress={() => router.push(`/progress/${item.variantId}`)}>
+            <Pressable
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              onPress={() => router.push(`/progress/${item.variantId}`)}
+            >
               <View>
                 <Text style={styles.rowName}>{item.exerciseName}</Text>
                 <Text style={styles.rowMeta}>
@@ -82,7 +85,7 @@ export default function ProgressScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: 18,
     paddingTop: 20,
@@ -90,7 +93,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  title: { fontSize: 22, fontWeight: '500', color: colors.textPrimary },
+  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3, color: colors.textPrimary },
   searchInput: {
     margin: 16,
     height: 44,
@@ -100,12 +103,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 15,
     color: colors.textPrimary,
-    backgroundColor: colors.surface3,
+    backgroundColor: colors.surfaceRaised,
   },
   loading: { marginTop: 40 },
   listContent: { paddingHorizontal: 18, paddingBottom: 18 },
   row: { paddingVertical: 13, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  rowName: { fontSize: 15, color: colors.textPrimary, marginBottom: 2 },
+  rowPressed: { backgroundColor: colors.surfaceRaised },
+  rowName: { fontSize: 16, fontWeight: '500', color: colors.textPrimary, marginBottom: 2 },
   rowMeta: { fontSize: 12, color: colors.textMuted },
   emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: 40, lineHeight: 20 },
 });

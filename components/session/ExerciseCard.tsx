@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric, radii, text } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { getExercise } from '../../db/queries/exercises';
 import { getSettings } from '../../db/queries/settings';
@@ -46,19 +46,40 @@ interface Props {
 
 const LAST_TIME_DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 
-// CLAUDE.md "Live PR feedback" stage 1: "a pulse, not a persistent state... settles
-// back to normal after well under a second."
-const PR_PULSE_IN_MS = 140;
-const PR_PULSE_HOLD_MS = 180;
-const PR_PULSE_OUT_MS = 260;
-// "a small scale bump" and "a brief flat-color tint" — 3% and a 22%-opacity flat fill.
-// No glow, no gradient, per the same constraint the rest of the app follows.
-const PR_PULSE_SCALE = 1.03;
-const PR_PULSE_TINT_OPACITY = 0.22;
+// CLAUDE.md "Live PR feedback" stage 1. The visual pulse itself lives on the top-set
+// row's number (SetTableRow) — UI-changes.md puts the app's one animated beat on the
+// number, not the card. This component only decides WHEN a PR happened.
+//
 // The success haptic trails the per-set tap slightly. Fired in the same frame the two
 // read as one buzz, which defeats the point — CLAUDE.md wants the light tap on every
 // set precisely so the PR haptic is felt as something different.
 const PR_HAPTIC_DELAY_MS = 130;
+
+// Which exercise is being worked right now: the one holding the session's most recently
+// logged set. UI-changes.md asks for styling to differ only where it maps to something
+// real, and this is real — it's the card the user just logged into and will most
+// likely log into next. Display-only, never a gate (every card stays fully loggable),
+// and derived from the sets rather than stored, like everything else here.
+//   'active'   this card holds the latest set
+//   'inactive' some other card does
+//   'none'     nothing is logged yet, so no card is singled out
+type CardFocus = 'active' | 'inactive' | 'none';
+
+function cardFocus(setsByVariant: Record<string, SetRow[]>, variantId: string): CardFocus {
+  let latestVariant: string | null = null;
+  let latestAt = -Infinity;
+  for (const [id, rows] of Object.entries(setsByVariant)) {
+    for (const row of rows) {
+      const at = row.loggedAt.getTime();
+      if (at > latestAt) {
+        latestAt = at;
+        latestVariant = id;
+      }
+    }
+  }
+  if (latestVariant === null) return 'none';
+  return latestVariant === variantId ? 'active' : 'inactive';
+}
 
 // One exercise's section of the active workout, laid out to notch-ui-mockups.png's
 // middle panel: name, the equipment-brand row, the accent-tinted "Last time" block,
@@ -98,11 +119,9 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   const [entryReps, setEntryReps] = useState(0);
   const [entryRir, setEntryRir] = useState(0);
 
-  // One value drives both halves of the PR pulse. Native driver throughout, like every
-  // other animation in this app — the tint is an overlay's OPACITY rather than an
-  // animated backgroundColor precisely so it can stay on the native driver (colour
-  // interpolation can't), and so nothing here risks mixing drivers on one value.
-  const prPulse = useRef(new Animated.Value(0)).current;
+  // The latest PR, handed to the top-set row to play. A timestamp so the row can tell a
+  // fresh celebration from one it has already shown — see SetTableRow.prCelebration.
+  const [prCelebration, setPrCelebration] = useState<{ at: number } | null>(null);
   const prPulseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const variantId = sessionExercise.equipmentVariantId;
@@ -110,6 +129,7 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   const setsThisSession = useActiveSessionStore(
     (s) => s.setsByEquipmentVariantId[variantId] ?? EMPTY_SETS,
   );
+  const focus = useActiveSessionStore((s) => cardFocus(s.setsByEquipmentVariantId, variantId));
   const lastTopSet = useActiveSessionStore((s) => s.lastTopSetByEquipmentVariantId[variantId]);
   const lastWorkingSets = useActiveSessionStore(
     (s) => s.lastWorkingSetsByEquipmentVariantId[variantId] ?? EMPTY_SETS,
@@ -185,22 +205,8 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
     prPulseTimeout.current = setTimeout(() => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }, PR_HAPTIC_DELAY_MS);
-
-    prPulse.stopAnimation();
-    Animated.sequence([
-      Animated.timing(prPulse, {
-        toValue: 1,
-        duration: PR_PULSE_IN_MS,
-        useNativeDriver: true,
-      }),
-      Animated.delay(PR_PULSE_HOLD_MS),
-      Animated.timing(prPulse, {
-        toValue: 0,
-        duration: PR_PULSE_OUT_MS,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [prPulse]);
+    setPrCelebration({ at: Date.now() });
+  }, []);
 
   useEffect(
     () => () => {
@@ -325,23 +331,13 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
   }
 
   return (
-    <Animated.View
+    <View
       style={[
         styles.card,
+        focus === 'active' && styles.cardActive,
         dragHandle?.isDragging && styles.cardDragging,
-        { transform: [{ scale: prPulse.interpolate({ inputRange: [0, 1], outputRange: [1, PR_PULSE_SCALE] }) }] },
       ]}
     >
-      {/* The flat tint. An overlay rather than an animated backgroundColor so it stays
-          on the native driver, and green because CLAUDE.md reserves it for progression
-          indicators — which is exactly what a PR is. */}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.prTint,
-          { opacity: prPulse.interpolate({ inputRange: [0, 1], outputRange: [0, PR_PULSE_TINT_OPACITY] }) },
-        ]}
-      />
       <View style={styles.titleRow}>
         {dragHandle && (
           // Drag starts here and nowhere else. Anchored at the far left, well away from
@@ -371,10 +367,14 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
       {lastTopSet ? (
         <View style={styles.lastTimeBlock}>
           <Text style={styles.lastTimeLabel}>Last time · {lastTimeDate}</Text>
-          <Text style={styles.lastTimeValue}>
-            {formatWeight(lastTopSet.weight)} × {lastTopSet.reps} @{' '}
-            {lastTopSet.rir >= 4 ? '4+' : lastTopSet.rir} RIR
-          </Text>
+          <View style={styles.lastTimeValueRow}>
+            <Text style={styles.lastTimeNumber}>{formatWeight(lastTopSet.weight)}</Text>
+            <Text style={styles.lastTimeUnit}>×</Text>
+            <Text style={styles.lastTimeNumber}>{lastTopSet.reps}</Text>
+            <Text style={styles.lastTimeUnit}>@</Text>
+            <Text style={styles.lastTimeNumber}>{lastTopSet.rir >= 4 ? '4+' : lastTopSet.rir}</Text>
+            <Text style={styles.lastTimeUnit}>RIR</Text>
+          </View>
         </View>
       ) : (
         <View style={styles.noHistoryBlock}>
@@ -399,6 +399,7 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
               isCurrentTopSet={topSet?.id === s.id}
               improved={improved}
               improvementLabel={topSet?.id === s.id ? improvementLabel : null}
+              prCelebration={topSet?.id === s.id ? prCelebration : null}
               formatWeight={formatWeight}
               onOpenEdit={() => setEditingSetId(s.id)}
               onToggleWarmup={() => toggleWarmupOverride(db, s)}
@@ -430,8 +431,17 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
           <RirSelector value={entryRir} onChange={setEntryRir} />
         </View>
 
-        <Pressable style={styles.logButton} onPress={handleLogSet}>
-          <Text style={styles.logLabel}>Log set</Text>
+        {/* Full accent only where the user is working (or everywhere, before anything
+            is logged). Six identical solid-blue buttons down one scroll gave the eye
+            nowhere to land; the others step back to the accent tint and stay just as
+            tappable. */}
+        <Pressable
+          style={[styles.logButton, focus === 'inactive' && styles.logButtonQuiet]}
+          onPress={handleLogSet}
+        >
+          <Text style={[styles.logLabel, focus === 'inactive' && styles.logLabelQuiet]}>
+            Log set
+          </Text>
         </Pressable>
       </View>
 
@@ -471,12 +481,13 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
           }}
         />
       )}
-    </Animated.View>
+    </View>
   );
 }
 
 // Spacing follows notch-ui-mockups.html's active-workout panel: 16px card padding,
-// the 18px/500 exercise name, the brand row at 13px secondary, an 8px-radius accent
+// the exercise name on the quieter cardTitle scale (the numbers below it outrank it),
+// the brand row as secondary meta, an 8px-radius accent
 // tint block for "Last time," 6px between set rows, and a hairline above the entry
 // controls.
 const styles = StyleSheet.create({
@@ -484,24 +495,20 @@ const styles = StyleSheet.create({
   // wrapper instead, so a card's measured height is exactly its drop-slot height. A
   // margin here would sit outside that measurement and every drop target would be off
   // by one gap, compounding with distance.
+  // The hairline is always present (transparent when idle) so switching focus never
+  // changes the card's measured height — DraggableExerciseList's drop slots depend on it.
   card: {
-    backgroundColor: colors.surface1,
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: 'transparent',
     padding: 16,
   },
-  cardDragging: { borderWidth: 0.5, borderColor: colors.accent },
-  prTint: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 14,
-    backgroundColor: colors.textSuccess,
-  },
+  cardActive: { borderColor: colors.borderStrong },
+  cardDragging: { borderColor: colors.accent },
   loadingCard: {
-    backgroundColor: colors.surface1,
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     padding: 24,
     alignItems: 'center',
   },
@@ -516,22 +523,24 @@ const styles = StyleSheet.create({
   // and it has to be hit first time one-handed. The padding is part of the target, not
   // decoration — with hitSlop it gives roughly a 44pt touch area around a 21px icon.
   dragHandle: { paddingRight: 12, paddingVertical: 6 },
-  exerciseName: { fontSize: 18, fontWeight: '500', color: colors.textPrimary, flex: 1 },
+  exerciseName: { ...text.cardTitle, color: colors.textPrimary, flex: 1 },
   removeButton: { paddingLeft: 8 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14, paddingVertical: 2 },
-  brandLabel: { fontSize: 13, color: colors.textSecondary },
-  brandLabelEmpty: { fontSize: 13, color: colors.textMuted },
+  brandLabel: { ...text.meta, color: colors.textSecondary },
+  brandLabelEmpty: { ...text.meta, color: colors.textMuted },
   lastTimeBlock: {
     backgroundColor: colors.accentTintBg,
-    borderRadius: 8,
+    borderRadius: radii.row,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 16,
   },
-  lastTimeLabel: { fontSize: 11, color: colors.accentLight, marginBottom: 3 },
-  lastTimeValue: { fontSize: 14, fontWeight: '500', color: colors.accentLight },
+  lastTimeLabel: { ...text.label, color: colors.accentLight, opacity: 0.75, marginBottom: 4 },
+  lastTimeValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
+  lastTimeNumber: { ...numeric.inline, fontSize: 17, color: colors.accentLighter },
+  lastTimeUnit: { fontSize: 12, color: colors.accentLight },
   noHistoryBlock: {
-    borderRadius: 8,
+    borderRadius: radii.row,
     borderWidth: 0.5,
     borderColor: colors.border,
     paddingHorizontal: 12,
@@ -545,10 +554,12 @@ const styles = StyleSheet.create({
   rirBlock: { marginBottom: 12 },
   logButton: {
     height: 48,
-    borderRadius: 8,
+    borderRadius: radii.button,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logLabel: { fontSize: 15, fontWeight: '500', color: '#fff' },
+  logButtonQuiet: { backgroundColor: colors.accentTintBg },
+  logLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  logLabelQuiet: { color: colors.accentLight },
 });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { colors } from '../../constants/theme';
+import { colors, text } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import {
   listExercises,
@@ -138,7 +138,7 @@ export function AddExerciseModal({ visible, onClose, onSelect }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -158,10 +158,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 15,
     color: colors.textPrimary,
-    backgroundColor: colors.surface3,
+    backgroundColor: colors.surfaceRaised,
   },
-  sectionHeader: { backgroundColor: colors.surface3, paddingHorizontal: 16, paddingVertical: 6 },
-  sectionHeaderLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  // Opaque bg, not transparent: the header is sticky and rows scroll beneath it.
+  sectionHeader: { backgroundColor: colors.bg, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  sectionHeaderLabel: { ...text.label, color: colors.textMuted },
   resultRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

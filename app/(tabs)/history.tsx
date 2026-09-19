@@ -4,7 +4,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric } from '../../constants/theme';
 import { formatDurationLabel } from '../../lib/sessionDuration';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { listCompletedSessions } from '../../db/queries/sessions';
@@ -90,7 +90,10 @@ export default function HistoryScreen() {
           keyExtractor={(item) => item.session.id}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <Pressable style={styles.row} onPress={() => router.push(`/history/${item.session.id}`)}>
+            <Pressable
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              onPress={() => router.push(`/history/${item.session.id}`)}
+            >
               <View style={styles.rowMain}>
                 <Text style={styles.rowTitle}>{item.templateName ?? 'Empty workout'}</Text>
                 <Text style={styles.rowMeta}>
@@ -115,7 +118,7 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: 18,
     paddingTop: 20,
@@ -123,7 +126,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  title: { fontSize: 22, fontWeight: '500', color: colors.textPrimary },
+  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3, color: colors.textPrimary },
   loading: { marginTop: 60 },
   listContent: { padding: 18 },
   row: {
@@ -134,9 +137,10 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   rowMain: { flex: 1 },
-  rowTitle: { fontSize: 16, color: colors.textPrimary, marginBottom: 3 },
+  rowPressed: { backgroundColor: colors.surfaceRaised },
+  rowTitle: { fontSize: 16, fontWeight: '500', color: colors.textPrimary, marginBottom: 3 },
   rowMeta: { fontSize: 12, color: colors.textMuted },
   improvementBadge: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  improvementCount: { fontSize: 13, color: colors.textSuccess },
+  improvementCount: { ...numeric.inline, color: colors.textSuccess },
   emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: 40 },
 });

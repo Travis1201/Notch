@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric, radii } from '../../constants/theme';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { formatDurationLabel } from '../../lib/sessionDuration';
 
@@ -131,11 +131,11 @@ export function FinishWorkoutModal({
 
 const styles = StyleSheet.create({
   summaryBlock: { gap: 10 },
-  summaryText: { fontSize: 17, fontWeight: '500', color: colors.textPrimary },
+  summaryText: { ...numeric.inline, fontSize: 17, color: colors.textPrimary },
   warningText: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
   changesBlock: {
-    backgroundColor: colors.surface1,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
     padding: 16,
     gap: 14,
   },

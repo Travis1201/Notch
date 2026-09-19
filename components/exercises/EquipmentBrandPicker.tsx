@@ -87,7 +87,7 @@ export function EquipmentBrandPicker({ visible, currentBrand, onSelect, onClose 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface1 },
+  container: { flex: 1, backgroundColor: colors.surface },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 15,
     color: colors.textPrimary,
-    backgroundColor: colors.surface2,
+    backgroundColor: colors.surfaceRaised,
   },
   row: {
     paddingHorizontal: 16,

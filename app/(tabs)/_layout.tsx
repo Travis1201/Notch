@@ -31,12 +31,12 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.textPrimary,
         tabBarInactiveTintColor: colors.textMuted,
-        // The mockup's bar is a 0.5px hairline over surface2 with 10px above the icon
+        // The mockup's bar is a 0.5px hairline over the page background with 10px above the icon
         // and 12px below the label. The bottom inset is added on top of that padding
         // rather than replacing it, so the labels clear the home indicator on a
         // notched phone instead of sitting under it.
         tabBarStyle: {
-          backgroundColor: colors.surface2,
+          backgroundColor: colors.bg,
           borderTopColor: colors.border,
           borderTopWidth: 0.5,
           height: 56 + insets.bottom,

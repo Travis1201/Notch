@@ -120,7 +120,7 @@ export function ExerciseForm({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: colors.surface1, flex: 1 },
+  container: { padding: 16, backgroundColor: colors.surface, flex: 1 },
   fieldLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 6, marginTop: 14 },
   errorText: { fontSize: 12, color: colors.textError, marginTop: 6 },
   input: {
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     height: 44,
     fontSize: 15,
     color: colors.textPrimary,
-    backgroundColor: colors.surface2,
+    backgroundColor: colors.surfaceRaised,
   },
   pillRow: { flexDirection: 'row', marginTop: 8 },
   pill: {

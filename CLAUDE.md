@@ -285,9 +285,11 @@ never show magnitude outside a live session.
 
 Three stages on the same set row, in sequence:
 
-1. **Instant, one-time celebration.** The moment a logged set becomes a new PR: a brief
-   flat-color tint and a small scale bump on that exercise's card (no glow, no gradient —
-   matches the constraint everywhere else in this app), paired with a success haptic
+1. **Instant, one-time celebration.** The moment a logged set becomes a new PR: that
+   set's weight × reps scale up and flash green, then settle (no glow, no gradient —
+   matches the constraint everywhere else in this app). It lands on the number itself,
+   not the card, and it is the app's **only** deliberate motion — every other transition
+   stays instant so this one reads as earned. Paired with a success haptic
    (`expo-haptics` notification-success). A plain haptic tap (light impact) fires on
    every logged set regardless, so the success haptic reads as distinct. This fires once
    and settles back to normal after well under a second — it's a pulse, not a persistent

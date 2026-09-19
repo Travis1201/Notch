@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors } from '../../constants/theme';
+import { colors, text } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { listExercises, searchExercises, createExercise } from '../../db/queries/exercises';
 import type { Exercise } from '../../db/types';
@@ -162,7 +162,7 @@ export default function ExercisesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
   screenHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  screenTitle: { fontSize: 22, fontWeight: '500', color: colors.textPrimary },
+  screenTitle: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3, color: colors.textPrimary },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -194,11 +194,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 15,
     color: colors.textPrimary,
-    backgroundColor: colors.surface3,
+    backgroundColor: colors.surfaceRaised,
   },
   loading: { marginTop: 24 },
-  sectionHeader: { backgroundColor: colors.surface3, paddingHorizontal: 16, paddingVertical: 6 },
-  sectionHeaderLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  // Opaque bg, not transparent: the header is sticky and rows scroll beneath it.
+  sectionHeader: { backgroundColor: colors.bg, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  sectionHeaderLabel: { ...text.label, color: colors.textMuted },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -219,5 +220,5 @@ const styles = StyleSheet.create({
   },
   customPillLabel: { fontSize: 11, color: colors.accentLight },
   emptyText: { textAlign: 'center', color: colors.textMuted, marginTop: 20 },
-  createModalContainer: { flex: 1, backgroundColor: colors.surface1 },
+  createModalContainer: { flex: 1, backgroundColor: colors.bg },
 });

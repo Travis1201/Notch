@@ -151,8 +151,8 @@ export default function ExerciseDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

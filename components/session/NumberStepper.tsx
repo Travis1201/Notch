@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric, radii, text } from '../../constants/theme';
 import { NumericField } from '../shared/NumericField';
 
 interface Props {
@@ -47,7 +47,7 @@ export function NumberStepper({ label, value, step, min = 0, onChange, formatVal
 const styles = StyleSheet.create({
   column: { flex: 1 },
   label: {
-    fontSize: 11,
+    ...text.label,
     color: colors.textMuted,
     textAlign: 'center',
     marginBottom: 4,
@@ -57,16 +57,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 0.5,
     borderColor: colors.borderStrong,
-    borderRadius: 8,
-    height: 44,
+    borderRadius: radii.row,
+    height: 52,
   },
   tapTarget: {
-    width: 40,
-    height: 44,
+    width: 44,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sign: { fontSize: 16, color: colors.textSecondary },
+  sign: { fontSize: 20, color: colors.textMuted },
   valueTapTarget: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  value: { fontSize: 17, fontWeight: '500', color: colors.textPrimary, textAlign: 'center' },
+  value: { ...numeric.entry, color: colors.textPrimary, textAlign: 'center' },
 });

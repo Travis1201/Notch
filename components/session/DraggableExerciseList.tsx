@@ -447,6 +447,6 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     // Android clips shadows to the parent unless the view has its own background.
-    backgroundColor: colors.surface2,
+    backgroundColor: colors.bg,
   },
 });

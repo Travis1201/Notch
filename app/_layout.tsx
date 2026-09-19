@@ -11,11 +11,11 @@ import { DatabaseProvider } from '../db/DatabaseProvider';
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <View style={{ flex: 1, backgroundColor: colors.pageBg }}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <DatabaseProvider>
           <StatusBar style="light" />
           <Stack
-            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.pageBg } }}
+            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
           />
         </DatabaseProvider>
       </View>

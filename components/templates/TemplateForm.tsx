@@ -155,7 +155,7 @@ export function TemplateForm({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, paddingBottom: 40 },
   fieldLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 6, marginTop: 16 },
   input: {
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     height: 44,
     fontSize: 15,
     color: colors.textPrimary,
-    backgroundColor: colors.surface1,
+    backgroundColor: colors.surface,
   },
   emptyText: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
   exerciseList: { gap: 2 },
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: colors.surface1,
+    backgroundColor: colors.surface,
     borderRadius: 8,
     marginBottom: 4,
   },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric } from '../../constants/theme';
 import { useRestTimerStore } from '../../store/restTimerStore';
 
 function formatClock(totalSeconds: number): string {
@@ -56,8 +56,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: colors.border,
   },
-  adjust: { fontSize: 13, color: colors.accentLight },
-  clock: { fontSize: 17, fontWeight: '600', color: colors.accentLight, flex: 1, textAlign: 'center' },
+  adjust: { fontSize: 13, fontWeight: '500', color: colors.accentLight, fontVariant: ['tabular-nums'] },
+  clock: { ...numeric.entry, fontSize: 22, color: colors.accentLighter, flex: 1, textAlign: 'center' },
   skipButton: { paddingHorizontal: 10, paddingVertical: 6 },
   skipLabel: { fontSize: 13, color: colors.textSecondary },
 });

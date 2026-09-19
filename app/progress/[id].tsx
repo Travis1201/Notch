@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric, radii, text } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import {
   listTrackedVariants,
@@ -120,9 +120,9 @@ export default function ProgressDetailScreen() {
         {last?.topSet && (
           <>
             <View style={styles.bestRow}>
-              <Text style={styles.bestValue}>
-                {formatWeight(last.topSet.weight)} × {last.topSet.reps}
-              </Text>
+              <Text style={styles.bestValue}>{formatWeight(last.topSet.weight)}</Text>
+              <Text style={styles.bestTimes}>×</Text>
+              <Text style={styles.bestValue}>{last.topSet.reps}</Text>
               {changeDisplay !== 0 && (
                 <View style={styles.changeBadge}>
                   <Feather
@@ -168,11 +168,27 @@ export default function ProgressDetailScreen() {
           return (
             <View key={p.sessionId} style={styles.sessionRow}>
               <Text style={styles.sessionDate}>{DATE_FORMAT.format(p.date)}</Text>
-              <Text style={styles.sessionValue}>
-                {p.topSet ? `${formatWeight(p.topSet.weight)} × ${p.topSet.reps}` : '—'}
-              </Text>
-              {p.topSet && <Text style={styles.sessionRir}>{p.topSet.rir >= 4 ? '4+' : p.topSet.rir} RIR</Text>}
-              {improved && <Feather name="arrow-up-right" size={14} color={colors.textSuccess} />}
+              {p.topSet ? (
+                <View style={styles.sessionValueRow}>
+                  <Text style={[styles.sessionNumber, styles.sessionWeight]}>
+                    {formatWeight(p.topSet.weight)}
+                  </Text>
+                  <Text style={styles.sessionTimes}>×</Text>
+                  <Text style={[styles.sessionNumber, styles.sessionReps]}>{p.topSet.reps}</Text>
+                </View>
+              ) : (
+                <Text style={[styles.sessionValueRow, styles.sessionNone]}>—</Text>
+              )}
+              {p.topSet && (
+                <View style={styles.sessionRirGroup}>
+                  <Text style={styles.sessionRirValue}>{p.topSet.rir >= 4 ? '4+' : p.topSet.rir}</Text>
+                  <Text style={styles.sessionRirLabel}>RIR</Text>
+                </View>
+              )}
+              {/* A fixed slot, so rows with and without an arrow keep RIR aligned. */}
+              <View style={styles.arrowSlot}>
+                {improved && <Feather name="arrow-up-right" size={14} color={colors.textSuccess} />}
+              </View>
             </View>
           );
         })}
@@ -182,8 +198,8 @@ export default function ProgressDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -198,7 +214,7 @@ const styles = StyleSheet.create({
   pill: {
     paddingHorizontal: 11,
     paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: radii.pill,
     borderWidth: 0.5,
     borderColor: colors.border,
   },
@@ -207,14 +223,15 @@ const styles = StyleSheet.create({
   pillLabelSelected: { color: '#fff' },
   content: { padding: 16 },
   bestRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginBottom: 2 },
-  bestValue: { fontSize: 26, fontWeight: '500', color: colors.textPrimary },
+  bestValue: { ...numeric.display, color: colors.textPrimary },
+  bestTimes: { fontSize: 20, color: colors.textMuted },
   changeBadge: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  changeLabel: { fontSize: 13, color: colors.textSuccess },
+  changeLabel: { ...numeric.inline, color: colors.textSuccess },
   changeLabelMuted: { color: colors.textMuted },
   bestCaption: { fontSize: 12, color: colors.textMuted, marginBottom: 16 },
   chartBlock: { marginBottom: 16 },
   chartEmptyText: { fontSize: 13, color: colors.textMuted, lineHeight: 19, marginBottom: 20 },
-  sectionLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
+  sectionLabel: { ...text.label, color: colors.textMuted, marginBottom: 4 },
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,7 +240,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  sessionDate: { fontSize: 12, color: colors.textMuted, width: 54 },
-  sessionValue: { fontSize: 14, color: colors.textPrimary, flex: 1 },
-  sessionRir: { fontSize: 12, color: colors.textMuted },
+  sessionDate: { ...text.meta, color: colors.textMuted, width: 54 },
+  sessionValueRow: { flex: 1, flexDirection: 'row', alignItems: 'baseline' },
+  sessionNumber: { ...numeric.set, fontSize: 17, color: colors.textPrimary },
+  sessionWeight: { width: 60, textAlign: 'right' },
+  sessionTimes: { fontSize: 12, color: colors.textMuted, marginHorizontal: 5 },
+  sessionReps: { width: 28 },
+  sessionNone: { color: colors.textMuted },
+  sessionRirGroup: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
+  sessionRirValue: { ...numeric.inline, fontSize: 14, color: colors.textSecondary },
+  sessionRirLabel: { fontSize: 10, color: colors.textMuted },
+  arrowSlot: { width: 14, alignItems: 'flex-end' },
 });

@@ -293,7 +293,7 @@ phone-locked, skippable/adjustable without leaving the screen.
 `DatabaseProvider` and pins a single dark theme (not system-adaptive). `app/(tabs)/`
 holds the four-tab shell — Home / Progress / Exercises / History — styled to
 `notch-ui-mockups.html`'s tab bar (19px glyphs, 10px labels, a 0.5px hairline over
-`surface2`, with the device's bottom inset added to the mockup's padding rather than
+the page background, with the device's bottom inset added to the mockup's padding rather than
 replacing it). Three of the four icons come from Feather; Progress uses
 MaterialCommunityIcons' `chart-line`, since Feather's nearest glyph is an arrow rather
 than a plotted line. Both families ship inside `@expo/vector-icons`.
@@ -301,6 +301,26 @@ than a plotted line. Both families ship inside `@expo/vector-icons`.
 `constants/theme.ts` is the single source for colour, transcribed from the mockup's CSS
 custom properties. Nothing hardcodes a hex value outside it except `#fff` on accent
 fills, where white is the contrast requirement rather than a palette choice.
+
+The palette is locked, so hierarchy comes from three other things `theme.ts` defines
+(see `UI-changes.md` for the brief):
+
+- **A tonal depth ladder** — `bg` (every screen, sheet, header, the tab bar) →
+  `surface` (cards and grouped blocks) → `surfaceRaised` (active, focused or selected:
+  a working set row, a selected pill, a field, a row under a finger). Value steps only,
+  no new hues. Screens and cards previously sat two shades apart, which read as one
+  flat plane.
+- **A numeric type scale** (`numeric.*`) — weight, reps and RIR are heavier and larger
+  than the text around them, always with tabular figures, and set rows put weight and
+  reps in fixed-width columns so a stack of sets aligns digit for digit. The quieter
+  `text.*` scale (small uppercase labels, card titles, meta lines) is what surrounds
+  them.
+- **Radii by role** (`radii.*`) — rows 8, buttons 10, cards 16, pills fully round — so
+  a card, a button and a row inside a card don't read as the same kind of object.
+
+Pressed list rows step up to `surfaceRaised` instantly. Nothing else animates on
+purpose except the PR pulse (below); page-sheet slides and drag/swipe springs are
+system presentation or direct manipulation, not decoration.
 
 ### Home (`app/(tabs)/index.tsx`)
 
@@ -337,6 +357,15 @@ CLAUDE.md for structure. Concretely: the mockup's accent-tinted "Last time" bloc
 numbered set rows with greyed warm-ups, bordered Weight/Reps steppers, the 0/1/2/3/4+
 RIR pill row, and the full-width "Log set" button all appear verbatim — they just repeat
 per card down one scroll instead of belonging to one focused exercise.
+
+Because every card is always live, the one styling difference between cards is derived
+from something real: the card holding the session's **most recently logged set** is the
+one being worked. It gets a `borderStrong` hairline and keeps a solid accent "Log set";
+every other card's button steps back to the accent tint. Before anything is logged no
+card is singled out and every button is solid. This is display-only — computed from the
+sets on every render (`cardFocus` in `ExerciseCard`), never stored, never a gate. The
+hairline is always present (transparent when idle) so a focus change never alters a
+card's measured height, which the drag-to-reorder slots depend on.
 
 A persistent header leads with the **elapsed-time clock, centred and large** — the one
 number glanced at from arm's length between sets, so it outranks the screen title for
@@ -449,14 +478,22 @@ underneath its neighbours on the way.
 CLAUDE.md gives the plain green arrow two registers: quiet and direction-only when
 *browsing* (history, charts, home-screen counts), and something louder at the *moment* a
 PR happens. The louder version exists only while a session is `in_progress`, in three
-stages, all inside `ExerciseCard`.
+stages, driven from `ExerciseCard` and rendered by the top set's `SetTableRow`.
 
-**Stage 1, the pulse.** A flat green tint and a 3% scale bump on the exercise's card,
-plus a success haptic, settling in well under a second. The tint is an overlay's
-animated *opacity* rather than an animated `backgroundColor` — colour interpolation
-can't run on the native driver, and every animation in this app stays native-driven
-(mixing drivers on one value is itself a crash). Green because CLAUDE.md reserves it for
-progression indicators, which is exactly what this is. A light-impact haptic fires on
+**Stage 1, the pulse** — the app's one deliberate animation. The top set's weight × reps
+swell (to 1.22×, with a slight overshoot) and flash green, then settle, all in well under
+a second, plus a success haptic. It lands on the *number*, not the card, because the
+number is what the moment is about. The green is a second copy of the text laid exactly
+over the first with only its *opacity* animated — colour interpolation can't run on the
+native driver, and every animation in this app stays native-driven (mixing drivers on
+one value is itself a crash). Green because CLAUDE.md reserves it for progression
+indicators, which is exactly what this is.
+
+`ExerciseCard` decides *when* (below) and hands the top-set row a `{ at }` timestamp;
+the row plays it. A timestamp rather than a counter because the PR row is usually one
+that has only just mounted — the set that was just logged — so the row plays any
+celebration it hasn't seen that is under 800ms old, and ignores a stale one if it
+remounts later. A light-impact haptic fires on
 *every* logged set, which is what makes the PR haptic read as something different; the
 success one is delayed ~130ms so the two aren't felt as a single buzz.
 

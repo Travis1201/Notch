@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric, radii } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import type { Database } from '../../db/client';
 import {
@@ -312,7 +312,7 @@ export default function HomeScreen() {
             {otherSummaries.map((summary) => (
               <View key={summary.template.id} style={styles.templateRow}>
                 <Pressable
-                  style={styles.templateRowMain}
+                  style={({ pressed }) => [styles.templateRowMain, pressed && styles.rowPressed]}
                   onPress={() => handleStartTemplate(summary.template.id)}
                 >
                   <View style={[styles.dot, { backgroundColor: templateDotColor(summary.template.id) }]} />
@@ -337,11 +337,18 @@ export default function HomeScreen() {
               </View>
             ))}
 
-            <Pressable style={styles.plainRow} onPress={() => router.push('/template/new')}>
+            <Pressable
+              style={({ pressed }) => [styles.plainRow, pressed && styles.rowPressed]}
+              onPress={() => router.push('/template/new')}
+            >
               <Feather name="plus" size={15} color={colors.textMuted} />
               <Text style={styles.plainRowLabel}>Create template</Text>
             </Pressable>
-            <Pressable style={styles.plainRow} onPress={handleStartEmptyWorkout} disabled={!gym}>
+            <Pressable
+              style={({ pressed }) => [styles.plainRow, pressed && styles.rowPressed]}
+              onPress={handleStartEmptyWorkout}
+              disabled={!gym}
+            >
               <Feather name="plus" size={15} color={colors.textMuted} />
               <Text style={styles.plainRowLabel}>Empty workout</Text>
             </Pressable>
@@ -380,7 +387,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -391,7 +398,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  dayName: { fontSize: 22, fontWeight: '500', color: colors.textPrimary, marginBottom: 2 },
+  dayName: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3, color: colors.textPrimary, marginBottom: 2 },
   lastLifted: { fontSize: 13, color: colors.textMuted },
   gymPill: {
     flexDirection: 'row',
@@ -399,8 +406,8 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: colors.surface3,
-    borderRadius: 20,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radii.pill,
   },
   gymPillLabel: { fontSize: 12, color: colors.textSecondary },
   content: { flex: 1 },
@@ -408,36 +415,37 @@ const styles = StyleSheet.create({
   loadingIndicator: { marginTop: 60 },
   hero: {
     backgroundColor: colors.accent,
-    borderRadius: 16,
+    borderRadius: radii.card,
     padding: 18,
     marginTop: 18,
     marginBottom: 20,
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 },
-  heroTitle: { fontSize: 24, fontWeight: '500', color: '#fff' },
+  heroTitle: { fontSize: 24, fontWeight: '700', color: '#fff' },
   heroMeta: { fontSize: 12, color: colors.accentLighter },
   heroSubtitle: { fontSize: 12, color: colors.accentLighter, marginTop: 4, marginBottom: 18 },
   heroExerciseList: { marginBottom: 18 },
   heroExerciseRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'baseline',
     paddingVertical: 7,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255,255,255,0.16)',
   },
-  heroExerciseName: { fontSize: 13, color: '#fff' },
-  heroExerciseValue: { fontSize: 13, color: colors.accentLight },
+  heroExerciseName: { fontSize: 13, color: colors.accentLighter },
+  heroExerciseValue: { ...numeric.inline, color: '#fff' },
   heroMoreLabel: { fontSize: 13, color: colors.accentLight, paddingTop: 7 },
   heroButton: {
-    height: 46,
-    borderRadius: 10,
+    height: 48,
+    borderRadius: radii.button,
     backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
   },
-  heroButtonLabel: { fontSize: 15, fontWeight: '500', color: colors.accent },
+  heroButtonLabel: { fontSize: 15, fontWeight: '600', color: colors.accent },
   rowList: { paddingBottom: 4 },
   templateRow: {
     flexDirection: 'row',
@@ -445,11 +453,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  templateRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 13 },
+  templateRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 14 },
+  // The ladder's third step, shown while a finger is down. Instant, not animated —
+  // the PR pulse is the app's only deliberate motion.
+  rowPressed: { backgroundColor: colors.surfaceRaised },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  templateRowName: { fontSize: 15, color: colors.textPrimary, flex: 1 },
+  templateRowName: { fontSize: 16, fontWeight: '500', color: colors.textPrimary, flex: 1 },
   improvementBadge: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  improvementCount: { fontSize: 12, color: colors.textSuccess },
+  improvementCount: { ...numeric.small, fontWeight: '600', color: colors.textSuccess },
   templateRowDate: { fontSize: 12, color: colors.textMuted, width: 68, textAlign: 'right' },
   editButton: { padding: 8 },
   plainRow: {

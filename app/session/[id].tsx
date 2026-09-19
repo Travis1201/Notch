@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 
-import { colors } from '../../constants/theme';
+import { colors, numeric, radii } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import { useActiveSessionStore } from '../../store/activeSessionStore';
 import { useRestTimerNotifications } from '../../hooks/useRestTimerNotifications';
@@ -351,8 +351,8 @@ export default function ActiveSessionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   header: {
     paddingHorizontal: 16,
     paddingTop: 10,
@@ -371,14 +371,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  progressLabel: { width: 52, fontSize: 12, color: colors.textMuted, textAlign: 'right' },
+  progressLabel: { ...numeric.small, width: 52, color: colors.textMuted, textAlign: 'right' },
   clock: {
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '600',
+    ...numeric.display,
     color: colors.textPrimary,
     textAlign: 'center',
-    fontVariant: ['tabular-nums'],
     marginTop: 2,
     marginBottom: 12,
   },
@@ -386,7 +383,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     height: 42,
-    borderRadius: 10,
+    borderRadius: radii.button,
     borderWidth: 0.5,
     borderColor: colors.borderStrong,
     alignItems: 'center',
@@ -396,12 +393,12 @@ const styles = StyleSheet.create({
   finishButton: {
     flex: 1,
     height: 42,
-    borderRadius: 10,
+    borderRadius: radii.button,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  finishButtonLabel: { fontSize: 15, fontWeight: '500', color: '#fff' },
+  finishButtonLabel: { fontSize: 15, fontWeight: '600', color: '#fff' },
   list: { flex: 1 },
   listContent: { padding: 16 },
   emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: 16 },
@@ -411,9 +408,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     height: 48,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderColor: colors.border,
+    // Dashed, not filled: an action slot at the end of the list, not another card.
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderStyle: 'dashed',
   },
   addExerciseLabel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
 });

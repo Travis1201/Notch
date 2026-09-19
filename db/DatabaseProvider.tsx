@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.pageBg,
+    backgroundColor: colors.bg,
     padding: 24,
   },
   errorTitle: {

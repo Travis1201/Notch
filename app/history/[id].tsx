@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { colors } from '../../constants/theme';
+import { colors, radii, text } from '../../constants/theme';
 import { useDatabase } from '../../db/DatabaseProvider';
 import {
   getSession,
@@ -421,8 +421,8 @@ export default function HistoryDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface2 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -440,22 +440,22 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: colors.surface3,
-    borderRadius: 20,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radii.pill,
   },
   metaPillLabel: { fontSize: 12, color: colors.textSecondary },
   content: { padding: 16 },
   emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: 20 },
-  card: { backgroundColor: colors.surface1, borderRadius: 14, padding: 16, marginBottom: 16 },
+  card: { backgroundColor: colors.surface, borderRadius: radii.card, padding: 16, marginBottom: 16 },
   exerciseTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 2,
   },
-  exerciseName: { fontSize: 18, fontWeight: '500', color: colors.textPrimary, flex: 1 },
+  exerciseName: { ...text.cardTitle, color: colors.textPrimary, flex: 1 },
   removeButton: { paddingLeft: 8 },
-  brandLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 10 },
+  brandLabel: { ...text.meta, color: colors.textMuted, marginBottom: 10 },
   setsList: { gap: 6, marginBottom: 6 },
   addSetRow: {
     flexDirection: 'row',
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
     gap: 8,
     height: 44,
     marginTop: 6,
-    borderRadius: 10,
+    borderRadius: radii.row,
     borderWidth: 0.5,
     borderColor: colors.border,
     borderStyle: 'dashed',
@@ -476,9 +476,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     height: 48,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderColor: colors.border,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderStyle: 'dashed',
   },
   addExerciseLabel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
 });
