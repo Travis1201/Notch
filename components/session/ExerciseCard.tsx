@@ -347,7 +347,7 @@ export function ExerciseCard({ sessionExercise, dragHandle }: Props) {
             <Feather
               name="menu"
               size={21}
-              color={dragHandle.isDragging ? colors.accentLight : colors.textSecondary}
+              color={dragHandle.isDragging ? colors.accentOnSurface : colors.textSecondary}
             />
           </View>
         )}
@@ -535,10 +535,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 16,
   },
-  lastTimeLabel: { ...text.label, color: colors.accentLight, opacity: 0.75, marginBottom: 4 },
+  lastTimeLabel: { ...text.label, color: colors.accentTintText, opacity: 0.75, marginBottom: 4 },
   lastTimeValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-  lastTimeNumber: { ...numeric.inline, fontSize: 17, color: colors.accentLighter },
-  lastTimeUnit: { fontSize: 12, color: colors.accentLight },
+  lastTimeNumber: { ...numeric.inline, fontSize: 17, color: colors.accentTintTextStrong },
+  lastTimeUnit: { fontSize: 12, color: colors.accentTintText },
   noHistoryBlock: {
     borderRadius: radii.row,
     borderWidth: 0.5,
@@ -561,5 +561,5 @@ const styles = StyleSheet.create({
   },
   logButtonQuiet: { backgroundColor: colors.accentTintBg },
   logLabel: { fontSize: 15, fontWeight: '600', color: colors.onAccent },
-  logLabelQuiet: { color: colors.accentLight },
+  logLabelQuiet: { color: colors.accentTintText },
 });

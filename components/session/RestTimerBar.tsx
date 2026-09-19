@@ -56,8 +56,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: colors.border,
   },
-  adjust: { fontSize: 13, fontWeight: '500', color: colors.accentLight, fontVariant: ['tabular-nums'] },
-  clock: { ...numeric.entry, fontSize: 22, color: colors.accentLighter, flex: 1, textAlign: 'center' },
+  adjust: { fontSize: 13, fontWeight: '500', color: colors.accentTintText, fontVariant: ['tabular-nums'] },
+  clock: { ...numeric.entry, fontSize: 22, color: colors.accentTintTextStrong, flex: 1, textAlign: 'center' },
   skipButton: { paddingHorizontal: 10, paddingVertical: 6 },
   skipLabel: { fontSize: 13, color: colors.textSecondary },
 });

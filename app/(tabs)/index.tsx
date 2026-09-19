@@ -422,8 +422,8 @@ const styles = StyleSheet.create({
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 },
   heroTitle: { fontSize: 24, fontWeight: '700', color: colors.onAccent },
-  heroMeta: { fontSize: 12, color: colors.accentLighter },
-  heroSubtitle: { fontSize: 12, color: colors.accentLighter, marginTop: 4, marginBottom: 18 },
+  heroMeta: { fontSize: 12, color: colors.onAccentMuted },
+  heroSubtitle: { fontSize: 12, color: colors.onAccentMuted, marginTop: 4, marginBottom: 18 },
   heroExerciseList: { marginBottom: 18 },
   heroExerciseRow: {
     flexDirection: 'row',
@@ -433,9 +433,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.onAccentBorder,
   },
-  heroExerciseName: { fontSize: 13, color: colors.accentLighter },
+  heroExerciseName: { fontSize: 13, color: colors.onAccentMuted },
   heroExerciseValue: { ...numeric.inline, color: colors.onAccent },
-  heroMoreLabel: { fontSize: 13, color: colors.accentLight, paddingTop: 7 },
+  heroMoreLabel: { fontSize: 13, color: colors.onAccentSubtle, paddingTop: 7 },
   heroButton: {
     height: 48,
     borderRadius: radii.button,

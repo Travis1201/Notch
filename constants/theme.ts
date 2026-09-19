@@ -33,23 +33,47 @@ export const colors = {
   // palette instead of shouting over it.
   danger: '#cf3328',
   accent: '#2f7fd1',
-  accentLight: '#9cc7ef',
-  accentLighter: '#cfe4f8',
-  accentTintBg: '#17263a',
-  // Ink drawn ON a filled accent surface: the hero card's title and numbers, a
-  // primary button's label, a selected pill, a checked checkbox's tick. A token
-  // rather than a literal '#fff' scattered across a dozen components, because it
-  // is only white for as long as the accent stays dark enough to carry white — a
-  // lighter or warmer accent needs dark ink instead, and swapping an accent must
-  // not mean hunting down every button label that assumed the old one.
+
+  // --- Ink on a FILLED ACCENT surface (the home hero card, a primary button) ---
+  // A token rather than a literal '#fff' scattered across a dozen components,
+  // because it is only white for as long as the accent stays dark enough to carry
+  // white — a lighter or warmer accent needs dark ink instead, and swapping an
+  // accent must not mean hunting down every button label that assumed the old one.
   onAccent: '#ffffff',
-  // A hairline drawn on a filled accent surface (the hero card's exercise rows).
-  // Same reasoning: it is white-at-low-alpha only because the accent is dark.
+  // Quieter ink on that same filled surface: the hero's meta line, its subtitle
+  // and the exercise names beside their numbers (muted), then "+2 more" (subtle).
+  onAccentMuted: '#cfe4f8',
+  onAccentSubtle: '#9cc7ef',
+  // A hairline on a filled accent surface (the hero card's exercise rows). Same
+  // reasoning: it is white-at-low-alpha only because the accent is dark.
   onAccentBorder: 'rgba(255,255,255,0.16)',
+
+  // --- An accent-TINTED PANEL sitting on bg, and the ink that goes on it ---
+  // The "last time" block inside an exercise card, the rest-timer bar, the quiet
+  // log button, the "custom" pill. The panel is a dark accent-tinted fill, NOT the
+  // accent itself, so its ink is a separate question from the onAccent* group.
+  //
+  // Those two groups used to share one pair of tokens (accentLight/accentLighter).
+  // That only worked because the accent was dark enough that a single light blue
+  // read correctly both on a filled accent card and on a dark tinted panel.
+  // Against a light accent the two jobs point in opposite directions — ink on the
+  // filled card has to go dark while ink on the tinted panel has to stay light —
+  // so they are split by role here, where a palette swap can answer them
+  // independently instead of a component having to override one of them.
+  accentTintBg: '#17263a',
+  accentTintText: '#9cc7ef',
+  accentTintTextStrong: '#cfe4f8',
+
+  // --- Accent-family ink on an ORDINARY card surface ---
+  // Currently only the drag handle while an exercise is being dragged: the accent
+  // itself is too dark to read as a highlight against a card, so this is a lifted
+  // version of it. A light accent can point this straight at the accent.
+  accentOnSurface: '#9cc7ef',
+
   // Ink on the danger fill. Deliberately separate from onAccent: danger stays a
-  // saturated red whatever the accent does, so this stays white even when
-  // onAccent doesn't. ConfirmModal's button is accent or danger depending on the
-  // action and needs both.
+  // saturated red whatever the accent does, so this stays white even when onAccent
+  // doesn't. ConfirmModal's button is accent or danger depending on the action and
+  // needs both.
   onDanger: '#ffffff',
 } as const;
 

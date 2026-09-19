@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  customPillLabel: { fontSize: 11, color: colors.accentLight },
+  customPillLabel: { fontSize: 11, color: colors.accentTintText },
   emptyText: { textAlign: 'center', color: colors.textMuted, marginTop: 20 },
   createModalContainer: { flex: 1, backgroundColor: colors.bg },
 });
