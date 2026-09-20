@@ -42,6 +42,59 @@ avoid new hues. The plan in this section is what's actually current.
 **The existing success green (for the PR up-arrow) is unchanged by either candidate.**
 Neither palette redefines it — leave it as-is unless told otherwise separately.
 
+### Results log
+
+Both documented candidates were built, loaded onto the phone and vetoed. Their
+branches are kept for reference; `main` was never touched.
+
+| Candidate | Branch | Outcome |
+|---|---|---|
+| A — Deep indigo and amber | `experiment/palette-indigo-amber` | **Vetoed** — the hues themselves, not legibility |
+| B — Cinematic cool | `experiment/palette-cinematic-cool` | **Vetoed** — hues again, plus the background colours |
+
+What the two vetoes narrowed down, which is more than either candidate on its own
+would have told us:
+
+- **Warm metallic accents are out.** Amber and muted copper failed for the same
+  reason at different intensities. The direction is a **cool or neutral accent**.
+- **Light, colour-saturated card surfaces are out.** Both candidates lifted the card
+  well above the base (`#2b3a67`, `#33404d`) and both read wrong. Depth has to come
+  from the tonal ladder inside a dark range, not from lifting surfaces into mid-tone.
+- **But `main`'s near-black neutral greys are also too flat.** So the answer is not
+  simply reverting: the base should stay as dark as `main`'s while picking up a faint
+  cool cast, with wider gaps between the three ladder steps.
+
+### Candidate C — Cool steel (current test)
+
+Not from the original pair — written from what A and B ruled out. Dark as `main`,
+cool rather than neutral-grey, with a desaturated steel-blue accent.
+
+| Role | Hex |
+|---|---|
+| Base (app background) | `#0d0f13` |
+| Surface (card) | `#171a20` |
+| Surface-raised (inputs, selected states) | `#232830` |
+| Border | `#313742` |
+| Text primary | `#e9ebf0` |
+| Text secondary | `#9aa2af` |
+| Text muted | `#6f7784` |
+| Accent | `#5b8db8` |
+| On-accent (text/icons on filled accent) | `#0d0f13` (base color) |
+
+Two deliberate departures from how A and B were specified:
+
+- **Secondary and muted are separate values.** Both candidates collapsed them into
+  one, which is what made A unreadable — one value cannot serve a card's "LAST TIME"
+  label and a session list's date at the same contrast. They are split here and
+  measured separately (6.9:1 and 3.9:1 on surface).
+- **The accent still inverts.** White on `#5b8db8` is 3.6:1; the base colour on it is
+  5.4:1, so the hero card and primary buttons take dark ink, the same shape as A and
+  B. That is a property of any accent light enough to read on a dark card, not a
+  quirk of the warm ones.
+
+If C is accepted, **CLAUDE.md's "Accent is a deep, desaturated blue (`#185FA5`-ish)"
+line needs updating** — `#5b8db8` is the same family but lighter and quieter.
+
 ### Prerequisite: centralize before testing
 
 Before applying either candidate, confirm every color reference in the codebase reads
