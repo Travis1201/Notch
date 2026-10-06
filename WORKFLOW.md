@@ -25,6 +25,22 @@ and the App Store search-conflict check), and the rename was carried through
 `app.json`, `package.json`, and the local database filename as a follow-up pass against
 the already-updated spec — not the spec being adjusted to match code already written.
 
+**The failure mode of a spec this central is silent regression, and it happened once.**
+The edit that added the "Live PR feedback" section to CLAUDE.md also rolled two unrelated
+paragraphs back to older wording: the "X of Y logged so far" exercise-count paragraph
+under Templates (describing behaviour that had already shipped), and the "No explicit
+Skip" paragraph, which a one-line "skip and reorder must both be available" had replaced.
+The second was the dangerous one — it reintroduced a contradiction with the Active
+workout screen section still sitting in the same file, and "skip" is a vestige of the
+rejected stepper design, so a later implementation pass reading only that line could have
+built it back. Both were restored verbatim from the prior commit, in a commit that does
+nothing else, so the diff reads as "the PR feature and nothing but the PR feature."
+
+The lesson is cheap and worth stating plainly: when a long document is edited by
+describing the change rather than by hand, the diff is the only thing that will tell you
+what *else* moved. Reading it is not optional, and a spec edit belongs in its own commit
+for exactly that reason.
+
 ## Empirical testing over speculation, adapted to this environment
 
 The predecessor project (a Spotify alarm) died after roughly five candidate
@@ -86,6 +102,78 @@ appears verbatim inside a card that repeats down one scroll. Both documents note
 explicitly, in `components/session/ExerciseCard.tsx`'s header comment, so the next
 reader doesn't have to rediscover which half of the mockup is authoritative.
 
+## Testing a judgment you can't reason your way to
+
+The app reached a point where it worked correctly and still read as visually flat —
+nothing wrong to point at, screens blending into each other, no moment with any weight
+behind it. That produced `UI-changes.md`, a brief with four prioritized fixes
+(a numeric type scale, a tonal depth ladder, one animated beat at the PR moment, an
+audit for uniform visual weight), written with an explicit constraint at the top: **the
+palette is locked and is not the problem.** New hues were out of scope by instruction.
+
+**The constraint turned out to be wrong, and the brief says so in place rather than
+being rewritten.** Working through the first two fixes made it clear that part of the
+flatness genuinely was the colour: near-black neutral greys don't give a depth ladder
+much room to work in. The locked-palette section is still in the file, struck through,
+under a heading marked SUPERSEDED, with the current plan above it — the same discipline
+CLAUDE.md uses for the rejected single-exercise stepper. A superseded decision is more
+useful kept and marked than deleted: it explains why the four original fixes were scoped
+to avoid colour, which is otherwise a strange-looking choice.
+
+### One candidate, one branch, one file
+
+Colour under gym lighting is not something anyone can settle by argument, and it's not
+something `tsc` has an opinion about — but unlike the gestures below, it is *cheap to
+test*. So each palette candidate is handled as an experiment with a fixed protocol:
+
+1. Confirm `main` is a clean committed baseline.
+2. Cut a branch for the candidate from `main` — never from another candidate's branch,
+   so a half-applied palette can't leak into the next test.
+3. Change **only** `constants/theme.ts`. If a component needs a hex edited, that is a
+   signal the centralization step wasn't finished — fix that instead of patching around
+   it.
+4. Load it on the actual phone, under real lighting. Not a laptop screenshot, and not a
+   code diff.
+5. Accepted → merge. Vetoed → `git checkout main`, and nothing needs cleaning up because
+   nothing on `main` was touched.
+
+Step 3 had a precondition that only showed up once the protocol was written down: the
+test is a one-file diff **only if** colour is genuinely centralized, and it wasn't quite.
+A handful of literal `#fff` values were still sitting in components on accent and danger
+fills, where white had looked like a contrast requirement rather than a palette choice.
+That assumption holds only while the accent is dark enough to carry white ink — exactly
+what a palette test is liable to change. Centralizing those into `onAccent`/`onDanger`
+became its own commit before any candidate was built, which is the sort of work that's
+easy to justify indefinitely and only actually got done because a test depended on it.
+
+### Two failures were worth more than either success would have been
+
+Both documented candidates were built, loaded, and vetoed. Taken individually that's two
+wasted branches. Taken together they triangulated:
+
+- **Warm metallic accents are out.** Amber and muted copper failed for the same reason at
+  two different intensities, which is a much stronger signal than one veto — the
+  direction is a cool or neutral accent.
+- **Light, colour-saturated card surfaces are out.** Both lifted the card well above the
+  base and both read wrong, so depth has to come from the tonal ladder *inside* a dark
+  range rather than from raising surfaces into mid-tone.
+- **But `main`'s near-black is also too flat** — so the answer isn't reverting either.
+
+Candidate C (cool steel) was written from that intersection rather than picked from a
+list: as dark as `main`, faintly cool rather than neutral, wider gaps between ladder
+steps, desaturated steel-blue accent. It's built on `experiment/palette-cool-steel` and
+awaiting its device pass. Two vetoes converted an open-ended aesthetic question into a
+narrow one, which is the whole reason the candidates were tested one at a time instead of
+as a batch of screenshots to pick from.
+
+The same tests also exposed a real structural problem in the theme that no amount of
+staring at `main` would have: both A and B needed *dark* ink on their accent fills, which
+revealed that one `accentLight` token had been quietly doing three unrelated jobs — ink on
+a filled accent card, ink on a dark accent-tinted panel, and accent-family ink on an
+ordinary card. Against a dark accent a single light blue serves all three by coincidence;
+against a light accent they point in opposite directions. Splitting them by role is
+permanent value extracted from two vetoed experiments.
+
 ## Constraint discovery before building, not after
 
 Before any logging-screen code was written, a research pass re-verified the current
@@ -116,7 +204,23 @@ CLAUDE.md alone:
   weight. Careful modelling of a mechanism can't tell you whether the mechanism should
   exist.
 
-Both were fixed before writing the screen that would have silently depended on them.
+A third instance of the same shape showed up much later, and is worth recording because the
+mechanism is different: building the Settings screen didn't *discover* a constraint, it made
+a dormant one reachable. `lib/units.ts` had a complete kg conversion path from early on, and
+nothing could reach it, because until Settings existed there was no way to change the unit
+preference. The moment there was, the per-exercise weight-increment override turned out to
+have been displaying and editing raw stored pounds the whole time — a kg user would have
+been shown "2.5" and been unable to set an increment in their own unit. Strict-mode types
+had nothing to say about it: the value had the right type and the wrong unit.
+
+The transferable part: code that no UI can reach yet is not "done pending testing," it's
+untested code with a plausible shape, and the feature that makes it reachable should be
+treated as the first time it runs. Worth auditing every consumer of a setting at the moment
+that setting becomes changeable, rather than trusting that a path which type-checks and was
+written against the right rule actually follows it.
+
+Both of the original two were fixed before writing the screen that would have silently
+depended on them.
 Separately, CLAUDE.md itself briefly contradicted its own spec — the "Logging screen"
 section said 5 lb stepper increments while the dedicated "Weight increments" section
 said 2.5 lb "not 5" — caught by cross-referencing the two sections rather than
@@ -175,6 +279,18 @@ directly; working around a real tooling limitation (drizzle-kit's rename-detecti
 prompt requires a TTY, unavailable in this shell) by splitting one schema change into
 two unambiguous additive/subtractive migrations instead of stalling on it.
 
+**Also helped**: keeping a derived rule from forking into near-duplicates. The live PR
+feedback feature needed a *magnitude* ("+5 lb", "+2 reps") next to a green arrow whose
+existence was already decided by `didImprove`. The obvious place to put that formatting is
+the component that renders it, and that is exactly how a row ends up printing "-1 rep"
+beside an up-arrow: a heavier top set for fewer reps improves by the app's own ordering
+rule, so the delta has to report weight whenever weight moved and never mention reps at
+all unless weight held steady. `describeImprovement` is gated on `didImprove` and shares
+`compareSets` with it, so the arrow and the number it sits next to cannot disagree by
+construction. CLAUDE.md's "put it in ONE named function" rule is what forced the
+question; the contribution was noticing that a second, quieter duplication was about to
+happen in a component.
+
 **Also helped**: mechanical breadth on work that's tedious rather than hard — growing
 the seed exercise library from ~60 movements to ~225 by regenerating
 `db/seedExercises.ts` from its CSV source rather than hand-editing two files toward each
@@ -192,8 +308,25 @@ later one per CLAUDE.md's build order — the spec describes the whole app, and 
 which parts of it a given screen is allowed to leave out is a product call, not a
 technical one.
 
+**Human judgment was also the only thing that could settle the palette.** Three candidate
+schemes were specified, contrast-checked, and reasoned about in writing; two of them were
+then vetoed on sight on a real phone, and the vetoes were about the hues themselves, not
+about any property a ratio could have caught. What AI assistance could usefully do there
+was narrower than it looks: write the candidates, keep the test honest (one branch, one
+file, cut from `main` every time), and — the part that actually mattered — extract the
+transferable constraint from each veto so the next candidate was derived from evidence
+instead of being another guess. The aesthetic call itself was never available to it.
+
 **And the single largest correction came from neither**: it came from taking the app to
 a gym. The stepper was specified in a mockup, reviewed, implemented, and type-checked
 clean; nothing in the static toolchain or the spec could have told anyone it was wrong.
 The distance between "this bundles and matches the design" and "this works while you're
 holding a dumbbell" is the part of the process that still has to be walked in person.
+
+Three separate times now, the same shape has repeated: static checks pass, the design is
+defensible on paper, and the phone disagrees. The process adaptation that came out of it
+isn't "test more" — it's **structuring work so that a veto is cheap**. A tagged
+known-good commit before the gestures, a runtime kill switch per gesture, a branch and a
+single file per palette candidate. None of those make the wrong answer less likely; they
+make finding out about it affordable, which is the only lever available when the feedback
+loop runs through a human in a gym rather than through a test suite.

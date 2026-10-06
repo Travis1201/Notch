@@ -298,12 +298,34 @@ replacing it). Three of the four icons come from Feather; Progress uses
 MaterialCommunityIcons' `chart-line`, since Feather's nearest glyph is an arrow rather
 than a plotted line. Both families ship inside `@expo/vector-icons`.
 
-`constants/theme.ts` is the single source for colour, transcribed from the mockup's CSS
-custom properties. Nothing hardcodes a hex value outside it except `#fff` on accent
-fills, where white is the contrast requirement rather than a palette choice.
+`constants/theme.ts` is the single source for colour, originally transcribed from the
+mockup's CSS custom properties. **No component hardcodes a hex value at all** — the last
+holdouts were the literal `#fff` on accent and danger fills, now the `onAccent` and
+`onDanger` tokens. That was not tidiness: those literals were only correct for as long
+as the accent stayed dark enough to carry white ink, so a palette swap would have meant
+hunting down every button label that had quietly assumed the old accent. Routing them
+through the theme is what makes a palette swap a one-file change, which is in turn what
+makes the branch-based palette test below a one-file diff.
 
-The palette is locked, so hierarchy comes from three other things `theme.ts` defines
-(see `UI-changes.md` for the brief):
+For the same reason, accent-family ink is split **by role rather than by lightness**:
+
+- `onAccent` / `onAccentMuted` / `onAccentSubtle` / `onAccentBorder` — ink on a *filled
+  accent* surface (the home hero card, a primary button).
+- `accentTintBg` / `accentTintText` / `accentTintTextStrong` — a dark *accent-tinted
+  panel* sitting on `bg` (an exercise card's "last time" block, the rest-timer bar) and
+  the ink that goes on it.
+- `accentOnSurface` — accent-family ink on an *ordinary card*, currently just the drag
+  handle mid-drag, where the accent itself is too dark to read as a highlight.
+
+These three groups used to share one `accentLight`/`accentLighter` pair, which worked
+only because the accent was dark enough that a single light blue happened to serve all
+three jobs. Against a *light* accent they point in opposite directions — ink on a filled
+card has to go dark while ink on a tinted panel has to stay light — so a swap has to be
+able to answer them independently instead of a component overriding one of them. The
+palette experiments below are what surfaced this; see `UI-changes.md`.
+
+Hierarchy itself comes from three other things `theme.ts` defines (see `UI-changes.md`
+for the brief):
 
 - **A tonal depth ladder** — `bg` (every screen, sheet, header, the tab bar) →
   `surface` (cards and grouped blocks) → `surfaceRaised` (active, focused or selected:
@@ -321,6 +343,17 @@ The palette is locked, so hierarchy comes from three other things `theme.ts` def
 Pressed list rows step up to `surfaceRaised` instantly. Nothing else animates on
 purpose except the PR pulse (below); page-sheet slides and drag/swipe springs are
 system presentation or direct manipulation, not decoration.
+
+**The palette itself is under active test, not locked.** The flatness diagnosis that
+produced the ladder and the numeric scale ended up reopening the hue question too. Each
+candidate is a one-file change to `theme.ts` on its own branch cut from `main`, loaded
+onto the phone, and either merged or abandoned — `main` is never at risk, and a veto
+costs a `git checkout`. Two candidates (deep indigo/amber, cinematic cool) have been
+built and vetoed on hardware; a third, cool steel, is written and awaiting a device
+pass on `experiment/palette-cool-steel`. `main` carries the original near-black
+neutral palette until something beats it. The full results log and what each veto ruled
+out live in `UI-changes.md`; if cool steel is accepted, CLAUDE.md's "deep, desaturated
+blue (`#185FA5`-ish)" line needs updating with it.
 
 ### Home (`app/(tabs)/index.tsx`)
 
@@ -645,20 +678,75 @@ A pill in Home's header (`components/gyms/GymSwitcherModal.tsx`), defaulting to
 gym only changes which gym the *next* new session uses; it is not a separately persisted
 "current gym", consistent with "gym defaults to the last one used" being derived.
 
+### Settings and JSON export (`app/settings.tsx`)
+
+Reached by a gear in Home's header, not a fifth tab — the tab bar is fixed at Home /
+Progress / Exercises / History by CLAUDE.md, and a tab opened a handful of times would
+dilute four that are opened constantly.
+
+It holds the unit preference, the three defaults that per-exercise overrides fall back to
+(rest seconds, weight increment, rep floor — see `lib/exerciseDefaults.ts`), and the export
+button. Each control writes immediately and takes the returned row as its new state; there
+is no Save button, because every other screen reads these defaults fresh on focus and a
+half-committed settings screen has no useful meaning.
+
+Building it exposed a real bug elsewhere: the per-exercise weight-increment override on the
+exercise detail screen displayed and edited the raw stored *pounds* whatever the unit
+preference said, so a kg user was shown "2.5" and could only set increments in lb. Nothing
+surfaced it before, because until this screen existed there was no way to switch units at
+all — the kg path was implemented and unreachable. Both the settings row and the
+per-exercise row now convert at the display boundary, and both do their stepper arithmetic
+on the *rounded display value* so a tap moves between round numbers in the unit on screen
+rather than accumulating conversion drift (2.5 lb is 1.1339… kg).
+
+**Export is split three ways, on purpose.** CLAUDE.md promotes JSON export from
+nice-to-have to important because there is no server, so a tester who reinstalls loses
+everything:
+
+- `lib/exportData.ts` builds and serializes the payload. Pure — no database, no Expo
+  imports — so the file format is verifiable without a device.
+- `db/queries/export.ts` reads every table **in a transaction**. That's for a consistent
+  snapshot rather than write safety: the rest timer, an auto-close sweep, or a set logged
+  from a session still open in the navigation stack can all write mid-read, and ten
+  independent reads could capture a `sets` row whose parent `sessions` row they'd already
+  read past — a file that fails referential integrity purely from timing. Its
+  `SCHEMA_VERSION` is read from the bundled Drizzle journal's last entry rather than
+  hand-maintained, because a hand-maintained version constant is one somebody forgets to
+  bump alongside a migration, and a version number that is silently wrong is worse than
+  none when an importer will trust it.
+- `lib/shareExport.ts` writes the file and hands it to the iOS share sheet. It writes to
+  the **cache** directory, not documents: the share sheet copies the file wherever it's
+  sent, so this copy is a handoff artifact whose correct lifetime is "reclaimable." Writing
+  to documents would quietly accumulate one backup per export inside the app's own
+  storage, which is both pointless and the opposite of a backup.
+
+The envelope carries `formatVersion` (the shape of the file) separately from
+`schemaVersion` (the migration the database was on), plus an explicit `weightUnit: 'lb'` —
+stated rather than implied, since `settings.unitPreference` also travels in the data and an
+importer must not mistake a display preference for the unit those numbers are in.
+
+Export failures render in the screen. There is no crash reporting by design (CLAUDE.md's
+no-data-collection constraint), so the screen is the only place a failure can be seen, and
+a backup button that fails silently is worse than no backup button at all.
+
 ## Known limitations / not yet built
 
 **Deferred by CLAUDE.md, deliberately.** Goals (v2) — the `goals` table exists and is
 unused. Bodyweight and assisted movements (v2) — `sets.addedWeight` /
 `sets.assistanceWeight` exist from v1 precisely so retrofitting them later isn't painful.
 Drop sets, supersets, and myo-reps are explicitly out of scope; log them as ordinary sets.
-JSON export is specified for v1 and isn't built yet — it's the only thing standing between
-a tester reinstalling and losing everything, so it's the next thing worth building.
 
-**The rep floor is implemented but defaults to 1**, which reproduces v1 behaviour exactly
-(heaviest set wins, no filter). It's a read-time filter everywhere — `selectTopSet` takes
-it as a parameter — so raising the default later needs no migration and no rework. There
-is no Settings screen yet to change it, or to change the unit preference, which is why the
-kg path in `lib/units.ts` is implemented but functionally unverified.
+**Import is not built** (CLAUDE.md defers it to v2), and the export screen says so plainly
+rather than implying a round trip exists. The format is designed for it: every row carries
+its real primary and foreign keys, so an importer can rebuild relationships instead of
+re-matching on names.
+
+**The rep floor is implemented and still defaults to 1**, which reproduces v1 behaviour
+exactly (heaviest set wins, no filter). It's a read-time filter everywhere —
+`selectTopSet` takes it as a parameter — so raising the default needs no migration and no
+rework. It is now changeable from Settings, along with the unit preference, which means the
+kg path in `lib/units.ts` is finally reachable at runtime — though still unverified on a
+device.
 
 **Cross-gym reference display isn't built.** A first session at a new gym currently shows
 no pre-fill at all rather than the specified greyed-out home-gym numbers. Honest, but not
@@ -700,7 +788,20 @@ That's correct for the case that matters — Home always reflects accurate
 resumable-session state before the user acts on it — but a session backgrounded past the
 3-hour threshold won't flip to `complete` until the user next visits Home.
 
-**Nothing here has run on a physical device.** CLAUDE.md's Gotchas are explicit that
-simulator scrolling and keyboard behaviour differ from the phone in ways that matter for
-this app, and that the logging screen needs one-handed thumb testing. Every layout
-decision above is reasoned from the mockups, not observed in a gym.
+**Device coverage is partial, and unevenly so.** Three things have genuinely been used on
+hardware, and each changed the design: the active workout screen (taken to a gym, which
+is what killed the single-exercise stepper), the two gestures (one device pass, not a gym
+pass), and the first two palette candidates (both vetoed under real lighting). Everything
+else above is still reasoned from the mockups rather than observed in a gym — and
+CLAUDE.md's Gotchas are explicit that simulator scrolling and keyboard behaviour differ
+from the phone in ways that matter here, and that the logging screen needs one-handed
+thumb testing specifically.
+
+**Dependencies track Expo SDK 57 exactly** (`npx expo install --check` is clean). React
+Native 0.87, React 19.3 and TypeScript 7 are all available and deliberately not taken:
+they belong to a future SDK, and moving them outside of an SDK upgrade is how a managed
+Expo project breaks. `react-dom` is held at 19.2.3 by an `overrides` entry — it arrives
+only as an optional peer of Expo's web packages, which this app doesn't use, and its
+19.3.0 release hard-pins a React the SDK doesn't ship. `npm audit` reports advisories in
+Expo's own CLI/build toolchain (`braces`, `node-forge`, and friends); none of it reaches
+the app bundle, and clearing it would mean leaving SDK 57.

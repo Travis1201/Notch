@@ -51,6 +51,7 @@ branches are kept for reference; `main` was never touched.
 |---|---|---|
 | A — Deep indigo and amber | `experiment/palette-indigo-amber` | **Vetoed** — the hues themselves, not legibility |
 | B — Cinematic cool | `experiment/palette-cinematic-cool` | **Vetoed** — hues again, plus the background colours |
+| C — Cool steel | `experiment/palette-cool-steel` | **Built, awaiting device pass.** Branch is one commit ahead of `main`, touching `constants/theme.ts` only |
 
 What the two vetoes narrowed down, which is more than either candidate on its own
 would have told us:
@@ -95,7 +96,15 @@ Two deliberate departures from how A and B were specified:
 If C is accepted, **CLAUDE.md's "Accent is a deep, desaturated blue (`#185FA5`-ish)"
 line needs updating** — `#5b8db8` is the same family but lighter and quieter.
 
-### Prerequisite: centralize before testing
+### Prerequisite: centralize before testing — DONE
+
+This is complete. `constants/theme.ts` is now the only place a colour literal appears:
+the last holdouts were `#fff` on accent and danger fills, now the `onAccent` / `onDanger`
+tokens. The accent-family inks were also split by role at the same time
+(`onAccent*` for ink on a filled accent, `accentTint*` for a dark accent-tinted panel,
+`accentOnSurface` for accent ink on an ordinary card) — testing A and B showed that one
+token had been serving three jobs that only agree while the accent is dark. A candidate
+is now genuinely a one-file diff. Original instruction kept below for context.
 
 Before applying either candidate, confirm every color reference in the codebase reads
 from a single theme/tokens file (e.g. `theme.ts` or `constants/colors.ts`) rather than

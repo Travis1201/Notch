@@ -24,7 +24,15 @@ Most lifting apps are built for beginners — recommended programs, generic temp
 
 ## Status
 
-v1 core feature set — logging, templates, history, and progress tracking — is built. Development is now moving into v2, which will add drop sets and goal-setting with projected timelines. Targeting TestFlight for initial testing, with an eventual App Store release.
+The v1 feature set is built: active workout logging with pre-fill from your last session, templates, the exercise library, multi-gym and equipment-brand tracking, warm-up inference, top-set progression charts, editable history, settings, and JSON export of everything to the share sheet.
+
+Export matters more here than in most apps — there's no account and no cloud backup, so it's the only thing between a reinstall and losing your training history. Importing a file back is a v2 item, so keep the files you export.
+
+The colour palette is mid-test — see `UI-changes.md`. Not everything above has been used on a phone yet; `ARCHITECTURE.md` is specific about which parts have.
+
+After that, v2 is goals with projected timelines, bodyweight and assisted movements, and cross-gym reference display. Drop sets, supersets, and myo-reps are deliberately out of scope — log them as ordinary sets.
+
+Targeting TestFlight for initial testing, with an eventual App Store release.
 
 ## Screenshots
 
