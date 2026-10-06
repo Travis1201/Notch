@@ -245,12 +245,22 @@ export default function HomeScreen() {
           <Text style={styles.dayName}>{WEEKDAY_FORMAT.format(new Date())}</Text>
           <Text style={styles.lastLifted}>{lastLiftedLabel(lastSession?.date ?? null)}</Text>
         </View>
-        {gym && (
-          <Pressable style={styles.gymPill} onPress={() => setGymSwitcherVisible(true)}>
-            <Feather name="map-pin" size={12} color={colors.textSecondary} />
-            <Text style={styles.gymPillLabel}>{gym.name}</Text>
+        <View style={styles.headerActions}>
+          {gym && (
+            <Pressable style={styles.gymPill} onPress={() => setGymSwitcherVisible(true)}>
+              <Feather name="map-pin" size={12} color={colors.textSecondary} />
+              <Text style={styles.gymPillLabel}>{gym.name}</Text>
+            </Pressable>
+          )}
+          {/* Settings has no tab of its own — the tab bar is Home / Progress /
+              Exercises / History per CLAUDE.md and a fifth tab would dilute it for
+              something opened a handful of times. A gear here is the one place every
+              user already looks, and it's the only route to the export button, which
+              is the single most important thing in there. */}
+          <Pressable onPress={() => router.push('/settings')} hitSlop={8}>
+            <Feather name="settings" size={17} color={colors.textSecondary} />
           </Pressable>
-        )}
+        </View>
       </View>
 
       {loading ? (
@@ -398,6 +408,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   dayName: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3, color: colors.textPrimary, marginBottom: 2 },
   lastLifted: { fontSize: 13, color: colors.textMuted },
   gymPill: {

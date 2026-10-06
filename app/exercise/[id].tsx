@@ -14,6 +14,7 @@ import {
   resolveWeightIncrement,
   resolveRepFloor,
 } from '../../lib/exerciseDefaults';
+import { fromLb, toLb } from '../../lib/units';
 import { ExerciseForm } from '../../components/exercises/ExerciseForm';
 import { ExerciseOverrideRow } from '../../components/exercises/ExerciseOverrideRow';
 
@@ -21,6 +22,13 @@ function formatMinutesSeconds(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Matches app/settings.tsx: the stepper arithmetic happens on the rounded DISPLAY value
+// so a tap moves between round numbers in the unit on screen, and only the result is
+// converted back to the stored pounds.
+function roundForDisplay(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 export default function ExerciseDetailScreen() {
@@ -125,13 +133,24 @@ export default function ExerciseDetailScreen() {
             onReset={() => applyOverride({ restSeconds: null })}
           />
 
+          {/* Converted at the display boundary like every other weight in the app
+              (CLAUDE.md "Units"). This row previously showed and edited the raw stored
+              pounds whatever the unit setting said, so a kg user was handed "2.5" and
+              could only ever set increments in pounds. Nothing exposed it until the
+              settings screen made the unit switch reachable at all. */}
           <ExerciseOverrideRow
-            label="Weight increment (lb)"
+            label={`Weight increment (${settings.unitPreference})`}
             overrideValue={exercise.weightIncrement}
-            effectiveValue={resolveWeightIncrement(exercise, settings)}
+            effectiveValue={roundForDisplay(
+              fromLb(resolveWeightIncrement(exercise, settings), settings.unitPreference),
+            )}
             step={0.5}
             min={0.5}
-            onChange={(next) => applyOverride({ weightIncrement: next })}
+            onChange={(next) =>
+              applyOverride({
+                weightIncrement: toLb(roundForDisplay(next), settings.unitPreference),
+              })
+            }
             onReset={() => applyOverride({ weightIncrement: null })}
           />
 
