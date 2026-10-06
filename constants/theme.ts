@@ -5,8 +5,8 @@ import type { TextStyle } from 'react-native';
 // only; neutral near-blacks/greys for everything else. Single dark theme — not
 // user-toggleable and not system-adaptive (see app.json's userInterfaceStyle).
 //
-// The palette is locked (UI-changes.md). Depth comes from VALUE steps within it, not
-// from new hues — a three-step tonal ladder, each step one notch lighter:
+// Depth comes from VALUE steps within the palette, not from new hues — a three-step
+// tonal ladder, each step one notch lighter:
 //
 //   bg            app background: every screen, sheet, header and the tab bar
 //   surface       a card or grouped block sitting on bg
