@@ -15,6 +15,12 @@ import type { TextStyle } from 'react-native';
 //
 // Before this ladder, screens were painted #19191b and cards #1c1c1f — close enough
 // that a card didn't read as a separate plane at all.
+//
+// The palette itself is NOT locked — it is under active branch-based test (see
+// UI-changes.md's results log). A candidate must be applied by editing this file and
+// nothing else; if a component needs a hex changed, that component is wrong, not this
+// file. Every colour the app draws is a token below, including the ink on filled
+// surfaces and the drag shadow, precisely so that stays true.
 export const colors = {
   bg: '#0e0e10',
   surface: '#1c1c1f',
@@ -69,6 +75,11 @@ export const colors = {
   // itself is too dark to read as a highlight against a card, so this is a lifted
   // version of it. A light accent can point this straight at the accent.
   accentOnSurface: '#9cc7ef',
+
+  // The drop shadow under a card being dragged. Black for any dark palette, but a
+  // token anyway: a palette candidate is only a one-file change if this file is the
+  // only file holding a colour, and one stray literal is how that stops being true.
+  shadow: '#000000',
 
   // Ink on the danger fill. Deliberately separate from onAccent: danger stays a
   // saturated red whatever the accent does, so this stays white even when onAccent

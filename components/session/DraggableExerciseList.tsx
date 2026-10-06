@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   lifted: {
     zIndex: 20,
     elevation: 12,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOpacity: 0.45,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
